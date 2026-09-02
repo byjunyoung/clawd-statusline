@@ -1,0 +1,20 @@
+{
+  "name": "clawd-statusline",
+  "owner": {
+    "name": "Junyoung Kim",
+    "url": "https://github.com/byjunyoung"
+  },
+  "metadata": {
+    "description": "Puts Clawd, the Claude Code mascot, in your status line",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "clawd-statusline",
+      "source": "./",
+      "description": "Wraps your existing status line command and stands Clawd to the left of it. The pose reacts to whichever is worse - context headroom or rate-limit headroom.",
+      "category": "monitoring",
+      "tags": ["statusline", "mascot", "clawd", "context", "monitoring"]
+    }
+  ]
+}
