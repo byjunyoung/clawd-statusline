@@ -46,6 +46,21 @@ The pose follows whichever is worse — context headroom or rate-limit headroom.
 
 Movement comes from `refreshInterval: 1`, which re-runs the status line once a second. Drop that key from `settings.json` for a still sprite.
 
+## Jump
+
+Claude Code's own Clawd hops when you click him. A status line command never learns about the click - all it is handed is a JSON payload on stdin, and the terminal's mouse events belong to Claude Code itself. So the hop is here, triggered by the closest thing the payload can see: you sending a prompt.
+
+```
+   crouch        jump        land
+                ▗▟▛███▛█▄    ▐▛███▛█
+  ▐▛███▛█        ▜██████▘   ▝▜██████▀
+ ~▜██████~        ▝▝ ▝▝       ▝▝ ▝▝
+```
+
+One tick each, read from the transcript rather than any hook, so nothing needs installing. Clawd stays put below the `wary` threshold - the same way the original ignores a click while an animation is already running. Set `"jump": false` to turn it off.
+
+The original plays twelve frames at 60ms. A status line cannot: `refreshInterval` is capped at one second ([#80290](https://github.com/anthropics/claude-code/issues/80290)), so the sequence is compressed to three.
+
 ## Configuration
 
 Everything is optional. Create `~/.claude/clawd-statusline.json` (or under `$CLAUDE_CONFIG_DIR`) with only the keys you want to change, or run `/clawd-statusline:configure`.
@@ -55,12 +70,14 @@ Everything is optional. Create `~/.claude/clawd-statusline.json` (or under `$CLA
 | `wrap` | auto-detect | Command whose output renders to the right. A string runs through the shell, an array runs directly. |
 | `gap` | `2` | Blank columns between sprite and wrapped output. |
 | `thresholds` | `{"wary": 50, "alarmed": 25, "panic": 10}` | Where the pose changes. Higher means Clawd worries earlier. |
+| `jump` | `true` | Hop for three ticks after you send a prompt. |
 
 ```json
 {
   "wrap": ["/usr/local/bin/node", "/path/to/your/statusline.js"],
   "gap": 3,
-  "thresholds": { "wary": 60, "alarmed": 30, "panic": 15 }
+  "thresholds": { "wary": 60, "alarmed": 30, "panic": 15 },
+  "jump": false
 }
 ```
 
