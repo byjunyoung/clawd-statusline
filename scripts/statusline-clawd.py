@@ -45,6 +45,7 @@ POSES = {
     "arms-up":    (ARMS_UP,   "▛███▛█", "█████"),
     "blink":      (ARMS_DOWN, "██████", "█████"),
     "wary":       (ARMS_DOWN, "▛███▛█", "██▄██"),
+    "wary-up":    (ARMS_UP,   "▛███▛█", "██▄██"),
     "alarmed":    (ARMS_DOWN, "▀███▀█", "█▄▄▄█"),
     "panic":      (ARMS_UP,   "▀███▀█", "█▄▄▄█"),
 }
@@ -58,10 +59,16 @@ FALLBACK = {
     "arms-up":    (" ▗   ▖ ", "       "),
     "blink":      ("       ", "       "),
     "wary":       (" ▗   ▖ ", "   ▀   "),
+    "wary-up":    (" ▗   ▖ ", "   ▀   "),
     "alarmed":    (" █   █ ", "  ▀▀▀  "),
     "panic":      (" █   █ ", "  ███  "),
 }
 FALLBACK_FEET = "▘▘ ▝▝"
+
+# 도약 프레임에서 팔을 올린 짝. panic은 이미 alarmed 얼굴에 팔만 올린 포즈다.
+AIRBORNE = {"default": "arms-up", "look-left": "arms-up", "look-right": "arms-up",
+            "blink": "arms-up", "arms-up": "arms-up",
+            "wary": "wary-up", "alarmed": "panic", "panic": "panic"}
 
 IDLE = [("default", 45), ("look-left", 15), ("look-right", 15), ("blink", 15), ("arms-up", 10)]
 
@@ -238,21 +245,26 @@ def pick_pose(payload, cfg, tick):
 
     worst = min(remaining) if remaining else 100.0
     if worst < thresholds["panic"]:
-        return ("panic" if tick % 2 else "alarmed"), 0, None   # 팔이 오르내린다
-    if worst < thresholds["alarmed"]:
-        return "alarmed", 0, None
-    if worst < thresholds["wary"]:
-        return "wary", 0, None
+        worried = "panic" if tick % 2 else "alarmed"   # 팔이 오르내린다
+    elif worst < thresholds["alarmed"]:
+        worried = "alarmed"
+    elif worst < thresholds["wary"]:
+        worried = "wary"
+    else:
+        worried = None
 
-    # 여유가 있을 때만 뛴다. 걱정하는 중에는 원본이 클릭을 흘리는 것과 같다.
-    if cfg.get("jump", True):
-        frame = jump_frame(payload)
+    # 표정은 그대로 두고 자세만 바꾼다. 걱정하는 중에도 부르면 뛴다.
+    frame = jump_frame(payload) if cfg.get("jump", True) else None
+    if frame is not None:
+        ground = worried or "default"
         if frame == 0:
-            return "default", 1, POOF[tick % len(POOF)]
+            return ground, 1, POOF[tick % len(POOF)]
         if frame == 1:
-            return "arms-up", 0, None
-        if frame == 2:
-            return "default", 0, None
+            return AIRBORNE.get(ground, ground), 0, None
+        return ground, 0, None
+
+    if worried:
+        return worried, 0, None
 
     rng = random.Random(tick)
     return rng.choices([n for n, _ in IDLE], weights=[w for _, w in IDLE])[0], 0, None
