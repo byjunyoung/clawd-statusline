@@ -44,3 +44,31 @@ class TestUnlocks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestColour(unittest.TestCase):
+    """악세사리가 몸통색과 같으면 걸친 게 아니라 혹으로 보인다."""
+
+    def test_every_wearable_declares_a_colour(self):
+        for table in (closet.HATS, closet.FRIENDS):
+            for name, item in table.items():
+                if not item[1]:
+                    continue
+                self.assertIsNotNone(item[2], name)
+                self.assertTrue(item[3].startswith("\033["), name)
+
+    def test_no_hat_reuses_the_body_colour(self):
+        body = (215, 119, 87)
+        for name, item in closet.HATS.items():
+            if item[1]:
+                self.assertNotEqual(item[2], body, name)
+
+    def test_colour_falls_back_when_the_terminal_is_not_truecolor(self):
+        rich = closet.color_of(closet.HATS, "crown", True)
+        plain = closet.color_of(closet.HATS, "crown", False)
+        self.assertIn("38;2;", rich)
+        self.assertNotIn("38;2;", plain)
+        self.assertTrue(plain.startswith("\033["))
+
+    def test_wearing_nothing_asks_for_no_colour(self):
+        self.assertEqual(closet.color_of(closet.HATS, "none", True), "")

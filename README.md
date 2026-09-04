@@ -16,7 +16,8 @@ From 0.3.0 Clawd keeps a level. Output tokens, new input and cache writes all co
 cache reads do not, since locally they came to 12 billion tokens and would drown every other
 signal. Setup reads the last 90 days of your own transcripts, so nobody starts at zero.
 
-Levelling unlocks hats — at 5, 12, 20, 30, 40, 50 and 65. `/clawd-statusline:wear` changes what
+Levelling unlocks hats — at 5, 12, 20, 30, 40, 50 and 65. Each is painted in its own colour, not
+Clawd's; in his own terracotta a hat reads as a lump growing out of his head rather than a hat. `/clawd-statusline:wear` changes what
 Clawd has on and `/clawd-statusline:card` shows where you are.
 
 ```

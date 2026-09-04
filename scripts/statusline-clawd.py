@@ -379,12 +379,16 @@ def dress(sprite, state):
     if not (closet and state):
         return sprite
     body_fg, _face_bg, _body_bg, _face_fg, dim = palette()
-    hat = closet.hat_row(closet.worn(state, "hat"))
-    friend = closet.friend_cell(closet.worn(state, "friend"))
+    truecolor = os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
+    hat_name, friend_name = closet.worn(state, "hat"), closet.worn(state, "friend")
+    hat = closet.hat_row(hat_name)
+    friend = closet.friend_cell(friend_name)
+    hat_fg = closet.color_of(closet.HATS, hat_name, truecolor) or body_fg
+    friend_fg = closet.color_of(closet.FRIENDS, friend_name, truecolor) or dim
 
     rows = list(sprite)
     head_at = 1 if rows and rows[0] == BLANK else 0
-    hat_line = f"{body_fg}{hat}{RESET}" if hat.strip() else BLANK
+    hat_line = f"{hat_fg}{hat}{RESET}" if hat.strip() else BLANK
     if head_at:
         rows[0] = hat_line          # 웅크린 자리에 모자가 들어간다
     else:
@@ -396,7 +400,7 @@ def dress(sprite, state):
     extra = len(friend) + 1
     feet_at = head_at + 3
     for i, row in enumerate(rows):
-        rows[i] = row + (f" {dim}{friend}{RESET}" if i == feet_at else " " * extra)
+        rows[i] = row + (f" {friend_fg}{friend}{RESET}" if i == feet_at else " " * extra)
     return rows
 
 
