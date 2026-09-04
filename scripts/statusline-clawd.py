@@ -10,7 +10,10 @@
     "wrap": "명령 문자열 또는 인자 배열",   // 생략하면 이미 쓰는 상태줄을 찾아 감싼다
     "gap": 2,                                // 스프라이트와 오른쪽 사이 여백
     "thresholds": {"wary": 50, "alarmed": 25, "panic": 10},
-    "jump": true                             // 프롬프트를 보내면 한 번 뛴다
+    "jump": true,                            // 프롬프트를 보내면 한 번 뛴다
+    "startle": true,                         // Esc로 멈추면 놀란다
+    "busy": true,                            // 도구가 도는 동안 두리번거린다
+    "idle": 60                               // 이만큼 조용하면 앉는다. 0이면 안 앉는다
   }
 """
 import hashlib
@@ -27,9 +30,11 @@ from glob import glob
 WIDTH = 9        # 스프라이트 폭(문자 칸)
 CACHE_TTL = 60   # 감싼 명령의 출력 캐시 수명(초)
 JUMP_TICKS = 3   # 프롬프트 직후 점프에 쓰는 틱 수(웅크림·도약·착지)
+STARTLE_TICKS = 2    # 중단당한 뒤 팔을 든 채 굳어 있는 틱 수
+IDLE_AFTER = 60      # 이만큼 조용하면 앉는다(초)
 TAIL_BYTES = 65536   # transcript 꼬리에서 읽어볼 크기
 TAIL_LINES = 40      # 그 안에서 들여다볼 줄 수
-DEFAULTS = {"wrap": None, "gap": 2, "jump": True,
+DEFAULTS = {"wrap": None, "gap": 2, "jump": True, "startle": True, "busy": True, "idle": 60,
             "thresholds": {"wary": 50, "alarmed": 25, "panic": 10}}
 
 # --- 스프라이트 ------------------------------------------------------------
@@ -131,33 +136,64 @@ def render(pose, offset=0, poof=None):
     return [BLANK, out[0], body]
 
 
-# --- 점프 ------------------------------------------------------------------
-def typed_prompt(record):
-    """사람이 직접 친 프롬프트인가. 도구 결과·메타·서브에이전트는 뺀다."""
+# --- 사람이 낸 신호 --------------------------------------------------------
+INTERRUPT_MARK = "[Request interrupted"
+
+
+def signal_kind(record):
+    """사람이 낸 신호인가, 어느 쪽인가. "prompt" / "interrupt" / None.
+
+    Esc로 멈춘 것도 user 메시지로 남고 겉모습이 프롬프트와 똑같다. 그냥 세면 멈출
+    때마다 Clawd가 좋다고 뛴다. 0.3.0까지 실제로 그랬다.
+    """
     if record.get("type") != "user" or record.get("isMeta") or record.get("isSidechain"):
-        return False
+        return None
     if "toolUseResult" in record:
-        return False
+        return None
     content = (record.get("message") or {}).get("content")
     if isinstance(content, str):
-        return bool(content.strip())
-    if isinstance(content, list):
+        if not content.strip():
+            return None
+        texts = [content]
+    elif isinstance(content, list):
         kinds = {b.get("type") for b in content if isinstance(b, dict)}
-        return bool(kinds) and "tool_result" not in kinds
+        if not kinds or "tool_result" in kinds:
+            return None
+        texts = [b.get("text") for b in content if isinstance(b, dict)]
+    else:
+        return None
+    for text in texts:
+        if isinstance(text, str) and text.strip().startswith(INTERRUPT_MARK):
+            return "interrupt"
+    return "prompt"
+
+
+def working(lines):
+    """마지막 도구 호출에 아직 결과가 안 붙었는가. 뒤에서부터 먼저 나오는 쪽이 이긴다."""
+    for line in reversed(lines):
+        if b'"tool_result"' in line or b'"toolUseResult"' in line:
+            return False
+        if b'"tool_use"' in line and b'"assistant"' in line:
+            return True
     return False
 
 
-def scan_tail(path, size):
-    """transcript 꼬리에서 마지막 프롬프트의 시각(epoch)을 찾는다."""
+def read_tail(path, size):
+    """꼬리를 한 번 읽어 (신호, 시각, 작업중)을 같이 뽑는다.
+
+    셋을 따로 읽으면 같은 파일을 세 번 연다. 매초 도는 명령이라 한 번에 끝낸다.
+    """
     try:
         with open(path, "rb") as fh:
             if size > TAIL_BYTES:
                 fh.seek(-TAIL_BYTES, os.SEEK_END)
             tail = fh.read()
     except OSError:
-        return None
+        return None, None, False
 
-    for line in reversed(tail.split(b"\n")[-TAIL_LINES:]):
+    lines = [ln for ln in tail.split(b"\n")[-TAIL_LINES:] if ln.strip()]
+    busy = working(lines)
+    for line in reversed(lines):
         # 큰 도구 결과 줄은 열어보지도 않는다. JSON 간격에 기대지 않으려고
         # 키 이름만 훑는다.
         if b'"user"' not in line or b'"tool_result"' in line or b'"toolUseResult"' in line:
@@ -166,64 +202,83 @@ def scan_tail(path, size):
             record = json.loads(line.decode("utf-8", "replace"))
         except ValueError:
             continue
-        if not isinstance(record, dict) or not typed_prompt(record):
+        if not isinstance(record, dict):
+            continue
+        kind = signal_kind(record)
+        if kind is None:
             continue
         stamp = record.get("timestamp")
         if not isinstance(stamp, str):
-            return None
+            break
         try:
-            return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+            return kind, datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp(), busy
         except ValueError:
-            return None
-    return None
+            break
+    return None, None, busy
 
 
-def jump_state(payload):
-    """세션마다 마지막 프롬프트 시각을 적어두는 파일. 큰 도구 출력이 프롬프트를
-    꼬리 밖으로 밀어내도 점프가 중간에 끊기지 않게 하는 용도다."""
+def beat_path(payload):
+    """세션마다 마지막 신호를 적어두는 파일.
+
+    두 가지를 한다. 큰 도구 출력이 프롬프트를 꼬리 밖으로 밀어내도 점프가 중간에
+    끊기지 않게 하고, transcript가 그대로일 때 꼬리를 다시 안 읽게 한다.
+    """
     session = "".join(c for c in str(payload.get("session_id") or "") if c.isalnum() or c in "-_")
     return os.path.join(config_dir(), "clawd-cache", "jump-%s.txt" % (session[:64] or "default"))
 
 
-def prompt_age(payload):
-    """마지막 프롬프트 이후 지난 초. 최근에 없으면 None."""
+def read_beat(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        return saved if isinstance(saved, dict) else {}
+    except (OSError, ValueError):
+        return {}      # 0.3.0이 남긴 숫자 한 줄짜리 파일도 여기로 온다
+
+
+def beat(payload):
+    """(마지막 신호, 그 뒤로 지난 초, 작업 중인가, 조용한 지 지난 초).
+
+    transcript의 크기와 수정시각이 그대로면 꼬리를 다시 읽지 않는다. 파일이 안 변했으면
+    마지막 줄도 그대로여서 판정이 바뀔 수가 없다.
+    """
     path = payload.get("transcript_path")
     try:
         stat = os.stat(path)
     except (OSError, TypeError, ValueError):
-        return None
+        return None, None, False, None
+
     now = time.time()
-    if now - stat.st_mtime > JUMP_TICKS + 2:   # 조용한 세션은 파일을 열지도 않는다
-        return None
+    quiet = now - stat.st_mtime
+    state = beat_path(payload)
+    saved = read_beat(state)
+    prev_at = saved.get("at") if isinstance(saved.get("at"), (int, float)) else None
 
-    seen = scan_tail(path, stat.st_size)
-    state = jump_state(payload)
-    saved = None
-    try:
-        with open(state, encoding="utf-8") as fh:
-            saved = float(fh.read().strip())
-    except (OSError, ValueError):
-        pass
-
-    if seen is not None and (saved is None or seen > saved + 0.5):
+    if saved.get("mtime") == int(stat.st_mtime) and saved.get("size") == stat.st_size:
+        kind, at, busy = saved.get("kind"), prev_at, bool(saved.get("busy"))
+    else:
+        found_kind, found_at, busy = read_tail(path, stat.st_size)
+        if found_at is not None and (prev_at is None or found_at > prev_at + 0.5):
+            kind, at = found_kind, found_at
+        else:
+            kind, at = saved.get("kind"), prev_at   # 꼬리 밖으로 밀려난 신호를 지킨다
         try:
             os.makedirs(os.path.dirname(state), exist_ok=True)
             with open(state, "w", encoding="utf-8") as fh:
-                fh.write(repr(seen))
+                json.dump({"kind": kind, "at": at, "busy": busy,
+                           "mtime": int(stat.st_mtime), "size": stat.st_size}, fh)
         except OSError:
             pass
-        saved = seen
-    stamp = max(x for x in (seen, saved) if x is not None) if (seen or saved) else None
-    return None if stamp is None else now - stamp
+
+    return kind, (None if at is None else now - float(at)), busy, quiet
 
 
-def jump_frame(payload):
-    """0 웅크림 / 1 도약 / 2 착지. 뛸 때가 아니면 None."""
-    age = prompt_age(payload)
-    if age is None or age <= -1:
+def frame_of(age, ticks):
+    """신호 이후 몇 번째 틱인가. 다 지났으면 None."""
+    if age is None or age <= -1:      # 시계가 앞서 있으면 그냥 안 한다
         return None
     frame = max(0, int(age))
-    return frame if frame < JUMP_TICKS else None
+    return frame if frame < ticks else None
 
 
 # --- 상태 판정 -------------------------------------------------------------
@@ -233,7 +288,11 @@ def _draw(weights, tick):
 
 
 def pick_pose(payload, cfg, tick):
-    """(포즈, 세로 오프셋, 먼지). 컨텍스트 잔량과 사용량 한도 중 나쁜 쪽이 기준이다."""
+    """(포즈, 세로 오프셋, 먼지).
+
+    바탕은 여유가 얼마나 남았는가고, 그 위에 방금 무슨 일이 있었는지를 얹는다.
+    최근 것이 이긴다 - 점프·놀람 > 앉기 > 두리번 > 바탕.
+    """
     thresholds = cfg["thresholds"]
     remaining = []
     ctx = payload.get("context_window") or {}
@@ -247,23 +306,42 @@ def pick_pose(payload, cfg, tick):
             remaining.append(100.0 - float(used))
 
     worst = min(remaining) if remaining else 100.0
-    if worst < thresholds["panic"]:
+    kind, age, busy, quiet = beat(payload)
+    panicking = worst < thresholds["panic"]
+
+    if panicking:
         # 바닥까지 오면 팔을 들었다 내렸다 한다. 새 그림 없이 이것만으로 다급해 보인다.
         pose = "arms-up" if tick % 2 else "default"
-    elif worst < thresholds["alarmed"]:
-        pose = _draw(BANDS[2][1], tick)
-    elif worst < thresholds["wary"]:
-        pose = _draw(BANDS[1][1], tick)
     else:
-        pose = _draw(BANDS[0][1], tick)
+        band = 0 if worst >= thresholds["wary"] else (1 if worst >= thresholds["alarmed"] else 2)
+        # 도구가 도는 동안은 한 칸 위 구간에서 뽑는다. 걱정해서가 아니라 지켜보느라
+        # 두리번거리는 것인데, 그림이 넷뿐이라 같은 몸짓으로 둘을 말한다.
+        if busy and cfg.get("busy", True):
+            band = min(band + 1, len(BANDS) - 1)
+        pose = _draw(BANDS[band][1], tick)
 
-    frame = jump_frame(payload) if cfg.get("jump", True) else None
-    if frame is not None:
+    if kind == "prompt" and cfg.get("jump", True):
+        frame = frame_of(age, JUMP_TICKS)
         if frame == 0:
             return pose, 1, POOF[tick % len(POOF)]
         if frame == 1:
             return AIRBORNE.get(pose, pose), 0, None
-        return pose, 0, None
+        if frame == 2:
+            return pose, 0, None
+
+    if kind == "interrupt" and cfg.get("startle", True):
+        if frame_of(age, STARTLE_TICKS) is not None:
+            # 하던 걸 멈춰 세운 참이다. 팔은 든 채로 몸을 내려 움찔하고 굳는다.
+            # 팔을 들고 몸이 내려간 프레임은 이것뿐이라 도약과 안 겹친다.
+            return "arms-up", 1, None
+
+    idle_after = cfg.get("idle", IDLE_AFTER)
+    if (idle_after and not busy and not panicking
+            and quiet is not None and quiet >= idle_after):
+        # 아무 일도 없으면 발을 접고 앉는다. 포즈는 고정한다 - 앉아서도 매초
+        # 두리번거리면 앉은 걸로 안 보인다. 여유가 바닥일 때는 앉지 않는다.
+        return "default", 1, None
+
     return pose, 0, None
 
 

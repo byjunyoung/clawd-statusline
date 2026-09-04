@@ -68,7 +68,7 @@ On Windows the shebang does not run, so use `python <path>` as the command inste
 
 ## Step 5 - switch growth on
 
-From 0.3.0 `/clawd-statusline:card` shows a level and five stats read out of your own history.
+`/clawd-statusline:card` shows a level and five stats read out of your own history.
 
 ```bash
 python3 "$(dirname "$SCRIPT")/growth_cli.py" start
@@ -80,7 +80,7 @@ keep it fed come with the plugin - there is nothing to wire up.
 
 Read the level out of the returned JSON and tell the user.
 Skipping this step is fine: the status line never reads the ledger, so with or without it Clawd
-is drawn exactly as in 0.2.0.
+is drawn exactly the same way.
 
 ## Step 6 - verify before reporting success
 

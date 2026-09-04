@@ -32,8 +32,8 @@ With none of them, Clawd stands alone.
 ## The card
 
 `/clawd-statusline:card` reads the last 90 days of your own transcripts and shows how you
-actually use Claude Code. It is the only thing 0.3.0 adds; **the status line itself is byte for
-byte what it was in 0.2.0.**
+actually use Claude Code. **The status line never reads any of it** — growth lives entirely in
+the card, so switching it on changes nothing about how Clawd is drawn.
 
 ```
   Clawd  Lv.36
@@ -101,20 +101,45 @@ Clawd is comes out of which of the four appears and how often.
 
 Movement comes from `refreshInterval: 1`, which re-runs the status line once a second. Drop that key from `settings.json` for a still sprite.
 
-## Jump
+## What Clawd reacts to
 
-Claude Code's own Clawd hops when you click him. A status line command never learns about the click - all it is handed is a JSON payload on stdin, and the terminal's mouse events belong to Claude Code itself. So the hop is here, triggered by the closest thing the payload can see: you sending a prompt.
+A status line never sees your keyboard. Claude Code hands it a JSON payload on stdin and redraws
+it on a fixed set of events; the terminal's key and mouse events belong to Claude Code itself.
+So everything below is inferred from that payload and from the tail of the transcript — no hooks,
+nothing to install.
+
+| You do | How Clawd knows | What he does |
+|---|---|---|
+| send a prompt | a typed user message appears | crouch, leap, land — one tick each |
+| press Esc to stop | `[Request interrupted by user]` lands in the transcript | arms up, body down, frozen for two ticks |
+| leave a tool running | the last tool call still has no result | glances around more — one band up from wherever headroom put him |
+| walk away | the transcript stops changing for a minute | folds his feet, sits, and holds a single pose |
 
 ```
-   crouch        jump        land
-                ▗▟▛███▛█▄    ▐▛███▛█
-  ▐▛███▛█        ▜██████▘   ▝▜██████▀
+   crouch        jump        land            startle         sit
+
+                ▗▟▛███▛█▄    ▐▛███▛█        ▗▟▛███▛█▄       ▐▛███▛█
+  ▐▛███▛█        ▜██████▘   ▝▜██████▀         ▜██████         ▜██████
  ~▜██████~        ▝▝ ▝▝       ▝▝ ▝▝
 ```
 
-One tick each, read from the transcript rather than any hook, so nothing needs installing. Clawd stays put below the `wary` threshold - the same way the original ignores a click while an animation is already running. Set `"jump": false` to turn it off.
+Nothing here is a new drawing. Raised arms, a body dropped one row, two dust characters and the
+timing between them are the whole vocabulary, and all four are Anthropic's. Arms up with the body
+down is the only frame the jump never uses, which is why the flinch gets it.
 
-The original plays twelve frames at 60ms. A status line cannot: `refreshInterval` is capped at one second ([#80290](https://github.com/anthropics/claude-code/issues/80290)), so the sequence is compressed to three.
+Claude Code's own Clawd hops when you click him, playing twelve frames at 60ms. A status line
+cannot: `refreshInterval` is capped at one second
+([#80290](https://github.com/anthropics/claude-code/issues/80290)), so the hop is compressed to
+three, triggered by the closest thing the payload can see — you sending a prompt.
+
+**What is not possible.** Keystrokes never arrive; `vim.mode` is the single exception, since it is
+in the payload and toggling it forces a redraw. Nothing can be shown during a permission prompt,
+the help menu or autocomplete, because Claude Code hides the status line while those are up. And
+switching permission mode triggers a redraw without saying which mode you switched to.
+
+The transcript tail is read only when the file's size or mtime changes, so a session sitting idle
+costs one `stat` per tick. Measured at 0.027s a run against a 6MB transcript, the same as before
+any of this existed.
 
 ## Configuration
 
@@ -126,13 +151,17 @@ Everything is optional. Create `~/.claude/clawd-statusline.json` (or under `$CLA
 | `gap` | `2` | Blank columns between sprite and wrapped output. |
 | `thresholds` | `{"wary": 50, "alarmed": 25, "panic": 10}` | Where the pose changes. Higher means Clawd worries earlier. |
 | `jump` | `true` | Hop for three ticks after you send a prompt. |
+| `startle` | `true` | Flinch for two ticks after you interrupt with Esc. |
+| `busy` | `true` | Glance around more while a tool is still running. |
+| `idle` | `60` | Sit down after this many quiet seconds. `0` never sits. |
 
 ```json
 {
   "wrap": ["/usr/local/bin/node", "/path/to/your/statusline.js"],
   "gap": 3,
   "thresholds": { "wary": 60, "alarmed": 30, "panic": 15 },
-  "jump": false
+  "jump": false,
+  "idle": 0
 }
 ```
 

@@ -1,7 +1,7 @@
 {
   "name": "clawd-statusline",
-  "description": "Puts Clawd, the Claude Code mascot, in your status line - reacting to headroom - plus a card showing how you actually use Claude Code",
-  "version": "0.3.0",
+  "description": "Puts Clawd, the Claude Code mascot, in your status line - keeping the status line you already run - where he reacts to headroom and to what you just did in the terminal",
+  "version": "0.4.0",
   "author": {
     "name": "Junyoung Kim",
     "url": "https://github.com/byjunyoung"
