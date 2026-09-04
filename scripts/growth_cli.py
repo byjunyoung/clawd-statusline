@@ -3,7 +3,7 @@
 """성장을 켜고, 걸친 것을 바꾸고, 카드를 낸다.
 
   growth_cli.py start            과거 기록을 훑어 레벨을 매기고 장부를 만든다
-  growth_cli.py wear hat cap     걸친 것을 바꾼다
+  growth_cli.py wear hat cap     걸친 것을 바꾼다 (hat | friend)
   growth_cli.py card             카드를 낸다
   growth_cli.py json             장부를 그대로 낸다 (커맨드가 읽는 용도)
 """
@@ -100,7 +100,7 @@ def main(argv):
         print(json.dumps(start(), ensure_ascii=False))
     elif cmd == "wear":
         if len(argv) < 3:
-            raise SystemExit("growth_cli.py wear <hat|hold|friend> <이름>")
+            raise SystemExit("growth_cli.py wear <hat|friend> <이름>")
         print(json.dumps(wear(argv[1], argv[2]), ensure_ascii=False))
     elif cmd == "json":
         state = ledger.load()

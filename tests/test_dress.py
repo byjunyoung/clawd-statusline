@@ -43,10 +43,36 @@ class TestDress(unittest.TestCase):
         self.assertFalse(STRIP.sub("", out[0]).strip())
 
     def test_every_row_keeps_its_width(self):
-        state = {"level": 60, "worn": {"hat": "top", "hold": "torch"}}
+        state = {"level": 60, "worn": {"hat": "top"}}
         for row in sl.dress(sl.render("default"), state):
             self.assertGreaterEqual(len(STRIP.sub("", row)), sl.WIDTH)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWidth(unittest.TestCase):
+    """악세사리가 붙어도 줄마다 폭이 같아야 오른쪽 상태줄이 안 밀린다."""
+
+    def rows(self, state, **kw):
+        return sl.dress(sl.render("default", **kw), state)
+
+    def test_all_rows_share_one_width_with_a_friend(self):
+        widths = {sl.visible(r) for r in self.rows({"level": 60, "title": "OWL", "worn": {"friend": "bat"}})}
+        self.assertEqual(len(widths), 1, widths)
+
+    def test_all_rows_share_one_width_with_hat_hold_and_friend(self):
+        state = {"level": 60, "title": "OWL",
+                 "worn": {"hat": "top", "friend": "bat"}}
+        widths = {sl.visible(r) for r in self.rows(state)}
+        self.assertEqual(len(widths), 1, widths)
+
+    def test_all_rows_share_one_width_while_crouching(self):
+        state = {"level": 60, "worn": {"hat": "cone"}}
+        widths = {sl.visible(r) for r in self.rows(state, offset=1)}
+        self.assertEqual(len(widths), 1, widths)
+
+    def test_bare_clawd_stays_nine_wide(self):
+        for row in self.rows({"level": 1}):
+            self.assertEqual(sl.visible(row), sl.WIDTH)

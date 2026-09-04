@@ -17,7 +17,7 @@ class TestUnlocks(unittest.TestCase):
     def test_a_new_ledger_can_only_wear_nothing(self):
         open_now = closet.unlocked({"level": 1})
         self.assertEqual(open_now["hat"], ["none"])
-        self.assertEqual(open_now["hold"], ["none"])
+        self.assertEqual(open_now["friend"], ["none"])
 
     def test_levels_open_things_up(self):
         self.assertIn("cap", closet.unlocked({"level": 5})["hat"])

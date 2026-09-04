@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Clawd가 걸치는 것들. 레벨이 오르면 걸칠 것이 늘어난다.
 
-Clawd 본체는 시즌 1 그대로다. 여기서는 위에 한 행을 얹고, 몸통 오른쪽과
-발 옆에 한 칸씩 덧붙일 뿐이다. 원본은 건드리지 않는다.
+Clawd 본체는 시즌 1 그대로다. 여기서는 머리 위에 한 행을 얹고 발 옆에 한 칸을
+덧붙일 뿐이다. 원본은 건드리지 않는다.
+
+손에 드는 물건도 만들어 봤지만 뺐다. 한 글자짜리 물건은 머그인지 횃불인지
+구분이 안 가고 몸에 붙은 혹으로 보인다. 실루엣이 바뀌는 모자만 남긴다.
 
 그림은 2행짜리 픽셀 격자를 사분면 블록 한 행으로 접어 만든다. 문자 셀 하나가
 2x2 픽셀이라 위 절반은 위로 솟고 아래 절반은 머리에 닿는다.
@@ -38,20 +41,11 @@ HATS = {
     "none":  (1,  ""),
     "cap":   (5,  "\n.....########..."),
     "horn":  (12, "....#......#....\n....#......#...."),
-    "leaf":  (20, "........##......\n.......###......"),
+    "leaf":  (20, ".......##.......\n.......###......"),
     "cone":  (30, "........##......\n......######...."),
     "top":   (40, ".....######.....\n...##########..."),
     "crown": (50, "....#.#.#.#.#...\n....##########.."),
     "halo":  (65, "....##.####.##..\n................"),
-}
-
-# --- 손에 드는 것. 몸통 줄 오른쪽에 한 칸 붙는다 ----------------------------
-HOLDS = {
-    "none":  (1,  ""),
-    "mug":   (8,  "##\n##"),
-    "flag":  (18, "#.\n##"),
-    "torch": (35, ".#\n##"),
-    "wand":  (55, "#.\n.#"),
 }
 
 # --- 친구. 발 옆에 한 칸. 스탯 칭호로만 열린다 ------------------------------
@@ -65,7 +59,7 @@ FRIENDS = {
     "medal": ("MARATHON", ".#\n##"),     # 한 대화를 오래 끌면
 }
 
-SLOTS = ("hat", "hold", "friend")
+SLOTS = ("hat", "friend")
 
 
 def unlocked(state):
@@ -74,7 +68,6 @@ def unlocked(state):
     title = state.get("title") or ""
     return {
         "hat": [n for n, (need, _art) in HATS.items() if level >= need],
-        "hold": [n for n, (need, _art) in HOLDS.items() if level >= need],
         "friend": [n for n, (need, _art) in FRIENDS.items() if need is None or need == title],
     }
 
@@ -83,7 +76,6 @@ def next_unlock(state):
     """다음에 열리는 것. (슬롯, 이름, 필요 레벨) 또는 None."""
     level = state.get("level", 1)
     coming = [("hat", n, need) for n, (need, _a) in HATS.items() if need > level]
-    coming += [("hold", n, need) for n, (need, _a) in HOLDS.items() if need > level]
     return min(coming, key=lambda x: x[2]) if coming else None
 
 
@@ -97,11 +89,6 @@ def hat_row(name):
     """머리 위 한 행. 걸친 게 없으면 빈 줄."""
     need_art = HATS.get(name)
     return fold(need_art[1]) if need_art and need_art[1] else " " * WIDTH
-
-
-def hold_cell(name):
-    art = HOLDS.get(name)
-    return fold(art[1], 1) if art and art[1] else ""
 
 
 def friend_cell(name):
