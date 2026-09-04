@@ -1,6 +1,6 @@
 {
   "name": "clawd-statusline",
-  "description": "Puts Clawd, the Claude Code mascot, in your status line - reacting to headroom, and levelling up on the tokens you spend",
+  "description": "Puts Clawd, the Claude Code mascot, in your status line - reacting to headroom - plus a card showing how you actually use Claude Code",
   "version": "0.3.0",
   "author": {
     "name": "Junyoung Kim",
@@ -9,8 +9,7 @@
   "commands": [
     "./commands/setup.md",
     "./commands/configure.md",
-    "./commands/card.md",
-    "./commands/wear.md"
+    "./commands/card.md"
   ],
   "homepage": "https://github.com/byjunyoung/clawd-statusline",
   "repository": "https://github.com/byjunyoung/clawd-statusline",

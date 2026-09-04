@@ -1,6 +1,6 @@
 # clawd-statusline
 
-Clawd — the mascot that already ships inside Claude Code — standing in your status line, reacting to how much room you have left, and levelling up on the tokens you spend.
+Clawd — the mascot that already ships inside Claude Code — standing in your status line, reacting to how much room you have left.
 
 ```
  ▐▛███▛█   [Opus] │ my-project git:(main*)
@@ -10,34 +10,43 @@ Clawd — the mascot that already ships inside Claude Code — standing in your 
 
 ![Clawd's eight poses](docs/poses.png)
 
-## It grows on what you spend
+## The card
 
-From 0.3.0 Clawd keeps a level. Output tokens, new input and cache writes all count as food —
-cache reads do not, since locally they came to 12 billion tokens and would drown every other
-signal. Setup reads the last 90 days of your own transcripts, so nobody starts at zero.
-
-Levelling unlocks hats — at 5, 12, 20, 30, 40, 50 and 65. Each is painted in its own colour, not
-Clawd's; in his own terracotta a hat reads as a lump growing out of his head rather than a hat. `/clawd-statusline:wear` changes what
-Clawd has on and `/clawd-statusline:card` shows where you are.
+`/clawd-statusline:card` reads the last 90 days of your own transcripts and shows how you
+actually use Claude Code. It is the only thing 0.3.0 adds; **the status line itself is byte for
+byte what it was in 0.2.0.**
 
 ```
-   ▄█▄
- ▐▛███▛█   Lv.36
-▝▜██████▀  next 10.7M
-  ▝▝ ▝▝
+  Clawd  Lv.36
+
+   ▐▛███▛█    FED    245.0M
+  ▝▜██████▀   NEXT   8.3M to Lv.37
+    ▝▝ ▝▝     AGE    177 days
+
+  APPETITE  ████████░░   75
+  REACH     ████████░░   76
+  STAMINA   ███████░░░   68
+  PACK      ██░░░░░░░░   24
+  NOCTURNE  █░░░░░░░░░    9
 ```
 
-Five stats measure how you actually work — `APPETITE` tokens per active day, `REACH` share of
-tool calls that leave the machine, `STAMINA` how long you hold one conversation, `PACK` how
-often you send subagents out, `NOCTURNE` share of calls between 22:00 and 06:00. Push one past
-90 and it earns a title, and a title is the only thing that unlocks a friend to follow Clawd
-around. Levels alone never give you one — you have to work that way.
+The level comes from tokens spent. Output, new input and cache writes count as food; cache reads
+do not, since locally they came to 12 billion tokens and would drown every other signal. The plan
+you are on scales the curve at half strength — Pro 0.45, Max 5x 1.0, Max 20x 2.0 — so higher
+plans still climb faster, but not by the four-to-one raw token counts would give.
 
-The plan you are on scales the curve at half strength: Pro 0.45, Max 5x 1.0, Max 20x 2.0.
-Higher plans still grow faster, but not by the four-to-one raw token counts would give.
+The five stats measure how you work. `APPETITE` tokens per active day, `REACH` share of tool
+calls that leave the machine, `STAMINA` how long you hold one conversation, `PACK` how often you
+send subagents out, `NOCTURNE` share of calls between 22:00 and 06:00. Push one past 90 and it
+earns a title: `GLUTTON`, `ROAMER`, `MARATHON`, `LEGION`, `OWL`.
 
-**Skipping all of it is fine.** With no ledger on disk the growth code drops out entirely and
-the status line renders exactly as 0.2.0 did.
+Levelling used to unlock hats for Clawd to wear. That is gone — on a nine-cell sprite a hat is a
+small coloured blob, and seven of them across sixty-five levels never felt like a reward.
+`docs/growth.md` has the whole account, including the three creature designs that failed before
+it.
+
+**Skipping it is fine.** Never run setup's growth step and nothing is written, nothing is read,
+and the status line behaves exactly as it always has.
 
 ## It wraps, it doesn't replace
 

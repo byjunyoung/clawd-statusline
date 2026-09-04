@@ -1,5 +1,5 @@
 ---
-description: Show Clawd's level, stats, and what is unlocked
+description: Show how you actually use Claude Code - level, tokens, and five stats
 allowed-tools: Bash
 ---
 

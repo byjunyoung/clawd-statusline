@@ -24,12 +24,6 @@ import time
 from datetime import datetime
 from glob import glob
 
-try:                      # 0.3.0에서 붙은 성장. 없거나 깨져도 시즌 1은 그대로 돈다
-    import closet
-    import ledger
-except ImportError:       # pragma: no cover
-    closet = ledger = None
-
 WIDTH = 9        # 스프라이트 폭(문자 칸)
 CACHE_TTL = 60   # 감싼 명령의 출력 캐시 수명(초)
 JUMP_TICKS = 3   # 프롬프트 직후 점프에 쓰는 틱 수(웅크림·도약·착지)
@@ -78,7 +72,6 @@ AIRBORNE = {"default": "arms-up", "look-left": "arms-up", "look-right": "arms-up
 
 IDLE = [("default", 45), ("look-left", 15), ("look-right", 15), ("blink", 15), ("arms-up", 10)]
 
-ANSI = __import__("re").compile(r"\033\[[0-9;]*m")
 RESET = "\033[0m"
 NO_BG = "\033[49m"
 POOF = ("·", "~")   # 웅크릴 때 발밑에 피는 먼지. 원본과 같은 두 글자다.
@@ -362,57 +355,6 @@ def wrapped_lines(payload, raw, command):
     return lines
 
 
-def visible(text):
-    """ANSI를 뺀 실제 폭. 오른쪽 상태줄을 맞추려면 이 값이 줄마다 같아야 한다."""
-    return len(ANSI.sub("", text))
-
-
-def dress(sprite, state):
-    """Clawd 위에 걸친 것을 얹는다. 장부가 없으면 손대지 않는다.
-
-    웅크릴 때는 스프라이트 첫 줄이 비어 있다. 모자를 그 자리에 넣어야
-    머리를 따라 같이 내려간다. 위에 그대로 두면 모자만 공중에 뜬다.
-
-    손에 든 것과 친구는 스프라이트를 옆으로 넓힌다. 넓어진 만큼 모든 줄을
-    같이 채워야 오른쪽 상태줄이 한 칸 밀리지 않는다.
-    """
-    if not (closet and state):
-        return sprite
-    body_fg, _face_bg, _body_bg, _face_fg, dim = palette()
-    truecolor = os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
-    hat_name, friend_name = closet.worn(state, "hat"), closet.worn(state, "friend")
-    hat = closet.hat_row(hat_name)
-    friend = closet.friend_cell(friend_name)
-    hat_fg = closet.color_of(closet.HATS, hat_name, truecolor) or body_fg
-    friend_fg = closet.color_of(closet.FRIENDS, friend_name, truecolor) or dim
-
-    rows = list(sprite)
-    head_at = 1 if rows and rows[0] == BLANK else 0
-    hat_line = f"{hat_fg}{hat}{RESET}" if hat.strip() else BLANK
-    if head_at:
-        rows[0] = hat_line          # 웅크린 자리에 모자가 들어간다
-    else:
-        rows = [hat_line] + rows
-
-    # 친구는 발 옆에 선다. 한 칸 떼야 몸에 붙은 혹으로 안 보인다.
-    if not friend:
-        return rows
-    extra = len(friend) + 1
-    feet_at = head_at + 3
-    for i, row in enumerate(rows):
-        rows[i] = row + (f" {friend_fg}{friend}{RESET}" if i == feet_at else " " * extra)
-    return rows
-
-
-def load_state():
-    if not ledger:
-        return None
-    try:
-        return ledger.load()
-    except Exception:      # 장부가 깨져도 상태줄은 살아야 한다
-        return None
-
-
 def main():
     raw = sys.stdin.read()
     try:
@@ -424,13 +366,11 @@ def main():
 
     cfg = load_config()
     command = cfg["wrap"] or autodetect_hud()
-    state = load_state()
-    sprite = dress(render(*pick_pose(payload, cfg, int(time.time()))), state)
+    sprite = render(*pick_pose(payload, cfg, int(time.time())))
     right_lines = wrapped_lines(payload, raw, command)
 
     gap = " " * max(0, int(cfg["gap"]))
-    span = max((visible(row) for row in sprite), default=WIDTH)
-    indent = " " * (span + len(gap))
+    indent = " " * (WIDTH + len(gap))
     out = []
     for i in range(max(len(sprite), len(right_lines))):
         left = f"{sprite[i]}{gap}" if i < len(sprite) else indent

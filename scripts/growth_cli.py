@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""성장을 켜고, 걸친 것을 바꾸고, 카드를 낸다.
+"""쓴 토큰으로 레벨을 매기고 사용 습관을 다섯 스탯으로 보여준다.
 
-  growth_cli.py start            과거 기록을 훑어 레벨을 매기고 장부를 만든다
-  growth_cli.py wear hat cap     걸친 것을 바꾼다 (hat | friend)
-  growth_cli.py card             카드를 낸다
-  growth_cli.py json             장부를 그대로 낸다 (커맨드가 읽는 용도)
+  growth_cli.py start   과거 기록을 훑어 레벨을 매기고 장부를 만든다
+  growth_cli.py card    카드를 낸다
+  growth_cli.py json    장부를 그대로 낸다
+
+상태줄은 이 값을 쓰지 않는다. Clawd는 0.2.0 그대로 서 있다.
+악세사리로 꾸미는 것도 만들어 봤다가 통째로 뺐다. 9칸짜리 스프라이트에 얹을 수 있는 것이
+작은 색덩어리뿐이라 레벨을 올려도 손에 잡히는 보상이 안 됐다. 자세한 경위는 docs/growth.md.
 """
 
 import json
 import sys
 import time
 
-import closet
 import feed
 import grow
 import ledger
@@ -48,18 +50,6 @@ def start():
     return ledger.update(lambda s: s.update(refresh(state)))
 
 
-def wear(slot, name):
-    if slot not in closet.SLOTS:
-        raise SystemExit("모르는 자리입니다: %s" % slot)
-    state = ledger.load() or {}
-    if name not in closet.unlocked(refresh(state))[slot]:
-        raise SystemExit("아직 못 여는 것입니다: %s" % name)
-
-    def mutate(s):
-        s.setdefault("worn", {})[slot] = name
-    return ledger.update(mutate)
-
-
 def card(state):
     state = refresh(state)
     level = state.get("level", 1)
@@ -67,12 +57,11 @@ def card(state):
     need = max(0, grow.food_for_level(level + 1, factor) - state.get("food", 0))
     s = state.get("stats") or {}
     lines = ["", "  Clawd  Lv.%d" % level, ""]
-    body = [closet.hat_row(closet.worn(state, "hat")),
-            " ▐▛███▛█ ", "▝▜██████▀", "  ▝▝ ▝▝  "]
-    right = ["", "FED    %s" % compact(state.get("food", 0)),
+    body = [" ▐▛███▛█ ", "▝▜██████▀", "  ▝▝ ▝▝  "]
+    right = ["FED    %s" % compact(state.get("food", 0)),
              "NEXT   %s to Lv.%d" % (compact(need), level + 1),
              "AGE    %d days" % grow.age_days(state.get("firstTokenDate", ""), time.time())]
-    for i in range(4):
+    for i in range(3):
         lines.append(("  %s   %s" % (body[i], right[i])).rstrip())
     lines.append("")
     for k in ORDER:
@@ -80,17 +69,6 @@ def card(state):
     if state.get("title"):
         lines.append("")
         lines.append("  TITLE  %s" % state["title"])
-    lines.append("")
-    open_now = closet.unlocked(state)
-    for slot in closet.SLOTS:
-        worn_now = closet.worn(state, slot)
-        others = [n for n in open_now[slot] if n != worn_now]
-        lines.append("  %-7s %s%s" % (slot.upper(), worn_now,
-                                      ("   (%s)" % " ".join(others)) if others else ""))
-    nxt = closet.next_unlock(state)
-    if nxt:
-        lines.append("")
-        lines.append("  NEXT UNLOCK  %s %s at Lv.%d" % (nxt[0], nxt[1], nxt[2]))
     return "\n".join(lines)
 
 
@@ -98,10 +76,6 @@ def main(argv):
     cmd = argv[0] if argv else "card"
     if cmd == "start":
         print(json.dumps(start(), ensure_ascii=False))
-    elif cmd == "wear":
-        if len(argv) < 3:
-            raise SystemExit("growth_cli.py wear <hat|friend> <이름>")
-        print(json.dumps(wear(argv[1], argv[2]), ensure_ascii=False))
     elif cmd == "json":
         state = ledger.load()
         print(json.dumps(refresh(state) if state else {}, ensure_ascii=False))

@@ -98,13 +98,12 @@ def prune_cursors(state, now, days=7):
 
 
 def blank_state():
-    """새 장부. 크리처가 아니라 Clawd 하나를 키운다."""
+    """새 장부. 상태줄은 안 읽는다. 카드가 보여줄 값만 담는다."""
     return {
         "version": VERSION,
         "startedAt": int(time.time()), "firstTokenDate": "", "plan": "",
         "food": 0, "level": 1,
         "stats": {"appetite": 0, "reach": 0, "stamina": 0, "pack": 0, "nocturne": 0},
         "statsComputedAt": 0, "lastSeenAt": int(time.time()),
-        "worn": {"hat": "none", "hold": "none", "friend": "none"},
         "cursors": {},
     }
