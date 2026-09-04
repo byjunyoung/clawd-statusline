@@ -75,12 +75,16 @@ Needs Python 3.9+, standard library only. The status line takes effect on the ne
 
 The pose follows whichever is worse — context headroom or rate-limit headroom.
 
-| Remaining | Pose |
+| Remaining | What Clawd does |
 |---|---|
-| above 50% | `default`, `look-left`, `look-right`, `blink`, `arms-up`, shuffled every second |
-| 50–25% | `wary` |
-| 25–10% | `alarmed` |
-| below 10% | `panic` — arms going up and down |
+| above 50% | mostly stands still, glances left or right now and then |
+| 50–25% | glances far more often — restless rather than calm |
+| 25–10% | arms up much of the time |
+| below 10% | arms up and down every second |
+
+**Only Anthropic's four original poses are used.** Earlier versions drew extra faces — a mouth, a
+blink — and that is exactly what made it look like a knock-off. Nothing new is drawn; how worried
+Clawd is comes out of which of the four appears and how often.
 
 Movement comes from `refreshInterval: 1`, which re-runs the status line once a second. Drop that key from `settings.json` for a still sprite.
 
@@ -135,7 +139,7 @@ The wrapped command's output is cached under `clawd-cache/`, keyed partly on the
 
 ## Where Clawd comes from
 
-Clawd is Anthropic's, not mine. The character, the four original poses, and the terminal fallbacks are all reproduced from Claude Code's own renderer, where the sprite is drawn as quadrant blocks over a black field so the unfilled quadrants read as eyes. The body's second row works the same way, which is where the four new poses get their mouths.
+Clawd is Anthropic's, not mine. The character, its four poses, and the terminal fallbacks are all reproduced from Claude Code's own renderer, where the sprite is drawn as quadrant blocks over a black field so the unfilled quadrants read as eyes. Nothing has been added to the character itself.
 
 Anthropic has never documented the character, and requests to make the CLI avatar configurable were closed as `not_planned`. This project is not affiliated with or endorsed by Anthropic.
 

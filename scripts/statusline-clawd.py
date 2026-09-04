@@ -38,16 +38,14 @@ ARMS_DOWN = dict(r1L=" ▐", r1R="", r2L="▝▜", r2R="█▀")
 ARMS_UP = dict(r1L="▗▟", r1R="▄", r2L=" ▜", r2R="█▘")
 FEET = "  ▝▝ ▝▝  "
 
+# 앤트로픽 원본에 있는 넷이 전부다. 여기에 표정을 더 그리지 않는다.
+# 입이나 감은 눈을 새로 그려 붙이면 그 순간 짝퉁이 된다. 여유가 얼마나 남았는지는
+# 어느 포즈를 얼마나 자주 쓰느냐로만 말한다.
 POSES = {
     "default":    (ARMS_DOWN, "▛███▛█", "█████"),
     "look-left":  (ARMS_DOWN, "▟███▟█", "█████"),
     "look-right": (ARMS_DOWN, "█▟███▟", "█████"),
     "arms-up":    (ARMS_UP,   "▛███▛█", "█████"),
-    "blink":      (ARMS_DOWN, "██████", "█████"),
-    "wary":       (ARMS_DOWN, "▛███▛█", "██▄██"),
-    "wary-up":    (ARMS_UP,   "▛███▛█", "██▄██"),
-    "alarmed":    (ARMS_DOWN, "▀███▀█", "█▄▄▄█"),
-    "panic":      (ARMS_UP,   "▀███▀█", "█▄▄▄█"),
 }
 
 # Apple Terminal은 사분면 렌더가 다르다. 앤트로픽 원본도 여기선 색을 반전시켜
@@ -57,20 +55,20 @@ FALLBACK = {
     "look-left":  (" ▘   ▘ ", "       "),
     "look-right": (" ▝   ▝ ", "       "),
     "arms-up":    (" ▗   ▖ ", "       "),
-    "blink":      ("       ", "       "),
-    "wary":       (" ▗   ▖ ", "   ▀   "),
-    "wary-up":    (" ▗   ▖ ", "   ▀   "),
-    "alarmed":    (" █   █ ", "  ▀▀▀  "),
-    "panic":      (" █   █ ", "  ███  "),
 }
 FALLBACK_FEET = "▘▘ ▝▝"
 
 # 도약 프레임에서 팔을 올린 짝. panic은 이미 alarmed 얼굴에 팔만 올린 포즈다.
-AIRBORNE = {"default": "arms-up", "look-left": "arms-up", "look-right": "arms-up",
-            "blink": "arms-up", "arms-up": "arms-up",
-            "wary": "wary-up", "alarmed": "panic", "panic": "panic"}
+AIRBORNE = {"default": "arms-up", "look-left": "arms-up",
+            "look-right": "arms-up", "arms-up": "arms-up"}   # 뛰는 중엔 팔을 든다
 
-IDLE = [("default", 45), ("look-left", 15), ("look-right", 15), ("blink", 15), ("arms-up", 10)]
+# 잔량 구간마다 포즈를 뽑는 확률이 다르다. 여유로우면 가만히 있고, 줄수록 두리번거리다,
+# 위태로우면 팔을 든다. 그림은 넷 그대로고 빈도만 바뀐다.
+BANDS = [
+    ("calm",    [("default", 60), ("look-left", 15), ("look-right", 15), ("arms-up", 10)]),
+    ("wary",    [("default", 25), ("look-left", 32), ("look-right", 33), ("arms-up", 10)]),
+    ("alarmed", [("look-left", 30), ("look-right", 30), ("arms-up", 40)]),
+]
 
 RESET = "\033[0m"
 NO_BG = "\033[49m"
@@ -229,6 +227,11 @@ def jump_frame(payload):
 
 
 # --- 상태 판정 -------------------------------------------------------------
+def _draw(weights, tick):
+    rng = random.Random(tick)
+    return rng.choices([n for n, _ in weights], weights=[w for _, w in weights])[0]
+
+
 def pick_pose(payload, cfg, tick):
     """(포즈, 세로 오프셋, 먼지). 컨텍스트 잔량과 사용량 한도 중 나쁜 쪽이 기준이다."""
     thresholds = cfg["thresholds"]
@@ -245,29 +248,23 @@ def pick_pose(payload, cfg, tick):
 
     worst = min(remaining) if remaining else 100.0
     if worst < thresholds["panic"]:
-        worried = "panic" if tick % 2 else "alarmed"   # 팔이 오르내린다
+        # 바닥까지 오면 팔을 들었다 내렸다 한다. 새 그림 없이 이것만으로 다급해 보인다.
+        pose = "arms-up" if tick % 2 else "default"
     elif worst < thresholds["alarmed"]:
-        worried = "alarmed"
+        pose = _draw(BANDS[2][1], tick)
     elif worst < thresholds["wary"]:
-        worried = "wary"
+        pose = _draw(BANDS[1][1], tick)
     else:
-        worried = None
+        pose = _draw(BANDS[0][1], tick)
 
-    # 표정은 그대로 두고 자세만 바꾼다. 걱정하는 중에도 부르면 뛴다.
     frame = jump_frame(payload) if cfg.get("jump", True) else None
     if frame is not None:
-        ground = worried or "default"
         if frame == 0:
-            return ground, 1, POOF[tick % len(POOF)]
+            return pose, 1, POOF[tick % len(POOF)]
         if frame == 1:
-            return AIRBORNE.get(ground, ground), 0, None
-        return ground, 0, None
-
-    if worried:
-        return worried, 0, None
-
-    rng = random.Random(tick)
-    return rng.choices([n for n, _ in IDLE], weights=[w for _, w in IDLE])[0], 0, None
+            return AIRBORNE.get(pose, pose), 0, None
+        return pose, 0, None
+    return pose, 0, None
 
 
 # --- 감쌀 명령 -------------------------------------------------------------

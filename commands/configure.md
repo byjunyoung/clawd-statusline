@@ -11,7 +11,7 @@ Edit `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/clawd-statusline.json`. Create it only
 |---|---|---|
 | `wrap` | absent | Command whose output renders to the right of Clawd. A string runs through the shell; an array runs directly. Absent means auto-detect claude-hud, and stand alone if it is not there. |
 | `gap` | `2` | Blank columns between the sprite and the wrapped output. |
-| `thresholds` | `{"wary": 50, "alarmed": 25, "panic": 10}` | Remaining-percentage cutoffs where the pose changes. Higher numbers mean Clawd worries earlier. |
+| `thresholds` | `{"wary": 50, "alarmed": 25, "panic": 10}` | Remaining-percentage cutoffs where Clawd gets more restless. Higher numbers mean he worries earlier. |
 | `jump` | `true` | Hop for three ticks after the user sends a prompt. Suppressed below the `wary` threshold. |
 
 ## How to work
