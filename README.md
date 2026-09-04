@@ -29,43 +29,19 @@ few seconds a turn on a tool you don't use. Set `wrap` yourself and none of this
 
 With none of them, Clawd stands alone.
 
-## The card
+## Nothing to install
 
-`/clawd-statusline:card` reads the last 90 days of your own transcripts and shows how you
-actually use Claude Code. **The status line never reads any of it** — growth lives entirely in
-the card, so switching it on changes nothing about how Clawd is drawn.
+No hooks, no daemon, no database. The plugin is one Python script. Everything Clawd knows he
+reads from the payload Claude Code already hands the status line, and from the tail of the
+transcript that is already on disk. The only thing written is scratch: the wrapped command's
+last output and a few bytes recording what you last did, both under `clawd-cache/`. Delete that
+directory whenever you like.
 
-```
-  Clawd  Lv.36
-
-   ▐▛███▛█    FED    245.0M
-  ▝▜██████▀   NEXT   8.3M to Lv.37
-    ▝▝ ▝▝     AGE    177 days
-
-  APPETITE  ████████░░   75
-  REACH     ████████░░   76
-  STAMINA   ███████░░░   68
-  PACK      ██░░░░░░░░   24
-  NOCTURNE  █░░░░░░░░░    9
-```
-
-The level comes from tokens spent. Output, new input and cache writes count as food; cache reads
-do not, since locally they came to 12 billion tokens and would drown every other signal. The plan
-you are on scales the curve at half strength — Pro 0.45, Max 5x 1.0, Max 20x 2.0 — so higher
-plans still climb faster, but not by the four-to-one raw token counts would give.
-
-The five stats measure how you work. `APPETITE` tokens per active day, `REACH` share of tool
-calls that leave the machine, `STAMINA` how long you hold one conversation, `PACK` how often you
-send subagents out, `NOCTURNE` share of calls between 22:00 and 06:00. Push one past 90 and it
-earns a title: `GLUTTON`, `ROAMER`, `MARATHON`, `LEGION`, `OWL`.
-
-Levelling used to unlock hats for Clawd to wear. That is gone — on a nine-cell sprite a hat is a
-small coloured blob, and seven of them across sixty-five levels never felt like a reward.
-`docs/growth.md` has the whole account, including the three creature designs that failed before
-it.
-
-**Skipping it is fine.** Never run setup's growth step and nothing is written, nothing is read,
-and the status line behaves exactly as it always has.
+There used to be a card here: a level from the tokens you had spent, five stats scored out of
+your own history. It is gone. Usage dashboards for Claude Code are a crowded shelf, and a
+mascot that also keeps a ledger is a worse version of both. `docs/discarded.md` is the record of
+everything tried and dropped — three creature designs, a wardrobe, extra faces, and the card —
+so nobody has to find out the same way twice.
 
 ## Install
 

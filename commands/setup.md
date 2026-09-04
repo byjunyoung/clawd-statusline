@@ -66,32 +66,17 @@ Back up first, then set `statusLine`. Keep every other key in the file untouched
 
 On Windows the shebang does not run, so use `python <path>` as the command instead.
 
-## Step 5 - switch growth on
-
-`/clawd-statusline:card` shows a level and five stats read out of your own history.
-
-```bash
-python3 "$(dirname "$SCRIPT")/growth_cli.py" start
-```
-
-This reads the last 90 days of your own transcripts and sets the level that history earned,
-so nobody starts at zero. It takes a few seconds if there is a lot of history. The hooks that
-keep it fed come with the plugin - there is nothing to wire up.
-
-Read the level out of the returned JSON and tell the user.
-Skipping this step is fine: the status line never reads the ledger, so with or without it Clawd
-is drawn exactly the same way.
-
-## Step 6 - verify before reporting success
+## Step 5 - verify before reporting success
 
 Feed the script a sample payload and show the user the actual output:
 
 ```bash
 echo '{"session_id":"setup","context_window":{"remaining_percentage":80,"used_percentage":20},"rate_limits":{}}' | "$SCRIPT"
-python3 "$(dirname "$SCRIPT")/growth_cli.py" card
 ```
 
-The sprite must appear, with whatever was wrapped to the right of it, and the card must show a
-level. Then tell the user three things: the status line takes effect on the next Claude Code
-start, the backup from Step 4 is how they undo this, and `/clawd-statusline:card` is where the
-level and stats live.
+The sprite must appear, with whatever was wrapped to the right of it. Then tell the user two
+things: the status line takes effect on the next Claude Code start, and the backup from Step 4 is
+how they undo this.
+
+There is nothing else to switch on. The plugin ships no hooks and writes nothing outside the one
+config file, so this is the whole of setup.
