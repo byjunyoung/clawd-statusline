@@ -69,6 +69,10 @@ AIRBORNE = {"default": "arms-up", "look-left": "arms-up",
 
 # 잔량 구간마다 포즈를 뽑는 확률이 다르다. 여유로우면 가만히 있고, 줄수록 두리번거리다,
 # 위태로우면 팔을 든다. 그림은 넷 그대로고 빈도만 바뀐다.
+# 원본이 가만히 있을 때 도는 순서(chunk-j9b3a0wh.js의 autoplay). 60ms짜리를 틱에 얹으면
+# 22초 주기가 된다. 무작위로 뽑지 않고 이 순서 그대로 돈다 - 그게 "가라앉았다"로 읽힌다.
+IDLE_CYCLE = ["default"] * 12 + ["look-right"] * 5 + ["look-left"] * 5
+
 BANDS = [
     ("calm",    [("default", 60), ("look-left", 15), ("look-right", 15), ("arms-up", 10)]),
     ("wary",    [("default", 25), ("look-left", 32), ("look-right", 33), ("arms-up", 10)]),
@@ -331,16 +335,18 @@ def pick_pose(payload, cfg, tick):
 
     if kind == "interrupt" and cfg.get("startle", True):
         if frame_of(age, STARTLE_TICKS) is not None:
-            # 하던 걸 멈춰 세운 참이다. 팔은 든 채로 몸을 내려 움찔하고 굳는다.
-            # 팔을 들고 몸이 내려간 프레임은 이것뿐이라 도약과 안 겹친다.
-            return "arms-up", 1, None
+            # 하던 걸 멈춰 세운 참이다. 팔을 든 채로 굳는다.
+            # 원본에 offset 1은 default에만 붙는다. arms-up을 내리면 없는 프레임이 된다.
+            return "arms-up", 0, None
 
     idle_after = cfg.get("idle", IDLE_AFTER)
     if (idle_after and not busy and not panicking
             and quiet is not None and quiet >= idle_after):
-        # 아무 일도 없으면 발을 접고 앉는다. 포즈는 고정한다 - 앉아서도 매초
-        # 두리번거리면 앉은 걸로 안 보인다. 여유가 바닥일 때는 앉지 않는다.
-        return "default", 1, None
+        # 아무 일도 없으면 원본이 쉴 때 도는 순서로 넘어간다. 무작위로 뽑던 것을
+        # 멈추고 정해진 주기로 도는 것 자체가 가라앉은 표시다.
+        # 웅크린 채로 두지는 않는다 - 웅크리면 몸통 양 끝 한 칸이 잘리는데, 원본은
+        # 그 자리를 먼지로 메운다. 먼지 없이 계속 웅크리면 몸이 줄어 보인다.
+        return IDLE_CYCLE[tick % len(IDLE_CYCLE)], 0, None
 
     return pose, 0, None
 

@@ -121,6 +121,11 @@ class Session(unittest.TestCase):
     def pose(self, tick=7, cfg=None, **extra):
         return sl.pick_pose(self.payload(**extra), cfg or CFG, tick)
 
+    def seq(self, n, cfg=None, **extra):
+        """payload 하나를 고정해 n틱 동안 나온 포즈를 늘어놓는다."""
+        payload = self.payload(**extra)
+        return [sl.pick_pose(payload, cfg or CFG, t)[0] for t in range(n)]
+
 
 class TestPrompt(Session):
     def test_a_fresh_prompt_crouches_then_leaps_then_lands(self):
@@ -145,21 +150,19 @@ class TestInterrupt(Session):
         self.write([interrupt(time.time() - 0.2)])
         self.assertEqual(sl.beat(self.payload())[0], "interrupt")
 
-    def test_stopping_flinches(self):
+    def test_stopping_freezes_with_the_arms_up(self):
         self.write([interrupt(time.time() - 0.2)])
-        self.assertEqual(self.pose(), ("arms-up", 1, None))
+        self.assertEqual(self.pose(), ("arms-up", 0, None))
 
     def test_it_never_kicks_up_dust(self):
         # 먼지는 뛰기 직전 웅크릴 때만 난다. 멈춰 세운 건 뛰는 게 아니다.
         self.write([interrupt(time.time() - 0.2)])
         for tick in range(12):
-            pose, offset, dust = self.pose(tick=tick)
-            self.assertEqual((pose, offset), ("arms-up", 1))
-            self.assertIsNone(dust)
+            self.assertEqual(self.pose(tick=tick), ("arms-up", 0, None))
 
     def test_the_startle_wears_off(self):
         self.write([interrupt(time.time() - 5)], quiet=5)
-        self.assertNotEqual(self.pose()[:2], ("arms-up", 1))
+        self.assertNotEqual(set(self.seq(40)), {"arms-up"})
 
     def test_startle_can_be_switched_off(self):
         self.write([interrupt(time.time() - 0.2)])
@@ -170,27 +173,39 @@ class TestInterrupt(Session):
 
 
 class TestIdle(Session):
-    def test_going_quiet_sits_down(self):
-        self.write([prompt(time.time() - 300), said(time.time() - 300)], quiet=300)
-        self.assertEqual(self.pose(), ("default", 1, None))
+    CYCLE = ["default"] * 12 + ["look-right"] * 5 + ["look-left"] * 5
 
-    def test_sitting_still_means_the_same_pose_every_tick(self):
+    def test_going_quiet_falls_into_the_original_idle_cycle(self):
+        self.write([prompt(time.time() - 300), said(time.time() - 300)], quiet=300)
+        self.assertEqual(self.seq(len(self.CYCLE)), self.CYCLE)
+
+    def test_it_stops_drawing_at_random(self):
+        # 가라앉았다는 표시는 자세가 아니라 규칙성이다. 두 바퀴가 같아야 한다.
         self.write([said(time.time() - 300)], quiet=300)
-        self.assertEqual({self.pose(tick=t) for t in range(20)}, {("default", 1, None)})
+        twice = self.seq(len(self.CYCLE) * 2)
+        self.assertEqual(twice[:len(self.CYCLE)], twice[len(self.CYCLE):])
+
+    def test_it_never_crouches(self):
+        # 웅크리면 몸통 양 끝 한 칸이 잘린다. 원본은 그 자리를 먼지로 메우고,
+        # 먼지 없이 오래 웅크리고 있으면 몸이 줄어 보인다.
+        self.write([said(time.time() - 300)], quiet=300)
+        payload = self.payload()
+        for tick in range(40):
+            self.assertEqual(sl.pick_pose(payload, CFG, tick)[1:], (0, None))
 
     def test_a_running_tool_is_not_idle(self):
-        # 오래 도는 Bash는 파일을 안 건드린다. 조용하다고 앉으면 안 된다.
+        # 오래 도는 Bash는 파일을 안 건드린다. 조용하다고 쉬는 게 아니다.
         self.write([prompt(time.time() - 300), tool_call(time.time() - 300)], quiet=300)
-        self.assertEqual(self.pose()[1], 0)
+        self.assertNotEqual(self.seq(len(self.CYCLE)), self.CYCLE)
 
-    def test_it_does_not_sit_when_room_is_nearly_gone(self):
+    def test_running_out_of_room_wins_over_going_quiet(self):
         self.write([said(time.time() - 300)], quiet=300)
         low = {"context_window": {"remaining_percentage": 3}}
-        self.assertEqual(self.pose(**low)[1], 0)
+        self.assertEqual(set(self.seq(8, **low)), {"arms-up", "default"})
 
     def test_idle_can_be_switched_off(self):
         self.write([said(time.time() - 300)], quiet=300)
-        self.assertEqual(self.pose(cfg=dict(CFG, idle=0))[1], 0)
+        self.assertNotEqual(self.seq(len(self.CYCLE), cfg=dict(CFG, idle=0)), self.CYCLE)
 
 
 class TestBusy(Session):
