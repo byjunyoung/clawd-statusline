@@ -24,6 +24,12 @@ import time
 from datetime import datetime
 from glob import glob
 
+try:                      # 0.3.0에서 붙은 성장. 없거나 깨져도 시즌 1은 그대로 돈다
+    import closet
+    import ledger
+except ImportError:       # pragma: no cover
+    closet = ledger = None
+
 WIDTH = 9        # 스프라이트 폭(문자 칸)
 CACHE_TTL = 60   # 감싼 명령의 출력 캐시 수명(초)
 JUMP_TICKS = 3   # 프롬프트 직후 점프에 쓰는 틱 수(웅크림·도약·착지)
@@ -355,6 +361,41 @@ def wrapped_lines(payload, raw, command):
     return lines
 
 
+def dress(sprite, state):
+    """Clawd 위에 걸친 것을 얹는다. 장부가 없으면 손대지 않는다.
+
+    웅크릴 때는 스프라이트 첫 줄이 비어 있다. 모자를 그 자리에 넣어야
+    머리를 따라 같이 내려간다. 위에 그대로 두면 모자만 공중에 뜬다.
+    """
+    if not (closet and state):
+        return sprite
+    body_fg, _face_bg, _body_bg, _face_fg, dim = palette()
+    hat = closet.hat_row(closet.worn(state, "hat"))
+    hold = closet.hold_cell(closet.worn(state, "hold"))
+    friend = closet.friend_cell(closet.worn(state, "friend"))
+
+    rows = list(sprite)
+    head_at = 1 if rows and rows[0] == BLANK else 0
+    if hold:
+        rows[head_at + 1] += f"{body_fg}{hold}{RESET}"
+    if friend:
+        rows[head_at + 2] += f"{dim}{friend}{RESET}"
+    hat_line = f"{body_fg}{hat}{RESET}" if hat.strip() else BLANK
+    if head_at:
+        rows[0] = hat_line          # 웅크린 자리에 모자가 들어간다
+        return rows
+    return [hat_line] + rows
+
+
+def load_state():
+    if not ledger:
+        return None
+    try:
+        return ledger.load()
+    except Exception:      # 장부가 깨져도 상태줄은 살아야 한다
+        return None
+
+
 def main():
     raw = sys.stdin.read()
     try:
@@ -366,7 +407,8 @@ def main():
 
     cfg = load_config()
     command = cfg["wrap"] or autodetect_hud()
-    sprite = render(*pick_pose(payload, cfg, int(time.time())))
+    state = load_state()
+    sprite = dress(render(*pick_pose(payload, cfg, int(time.time()))), state)
     right_lines = wrapped_lines(payload, raw, command)
 
     gap = " " * max(0, int(cfg["gap"]))
