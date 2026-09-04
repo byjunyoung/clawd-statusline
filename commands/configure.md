@@ -22,7 +22,9 @@ Ask which of the four the user wants to change before writing anything, unless t
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-SCRIPT=$(ls -td "$CLAUDE_DIR"/plugins/cache/*/clawd-statusline/*/ 2>/dev/null | head -1)scripts/statusline-clawd.py
+SCRIPT=$(for d in "$CLAUDE_DIR"/plugins/cache/*/clawd-statusline/*/; do
+  [ -f "$d/scripts/statusline-clawd.py" ] && echo "$d/scripts/statusline-clawd.py"
+done | sort -V | tail -1)
 for pct in 80 40 18 5; do
   echo "--- remaining ${pct}% ---"
   echo "{\"session_id\":\"cfg\",\"context_window\":{\"remaining_percentage\":$pct,\"used_percentage\":$((100-pct))},\"rate_limits\":{}}" | "$SCRIPT"

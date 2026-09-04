@@ -11,7 +11,10 @@ Set up clawd-statusline as the user's status line. Work through the steps in ord
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-SCRIPT=$(ls -td "$CLAUDE_DIR"/plugins/cache/*/clawd-statusline/*/ 2>/dev/null | head -1)scripts/statusline-clawd.py
+# 낡은 버전 폴더가 캐시에 남아 있을 수 있다. 스크립트가 실제로 있는 것 중 최신을 고른다.
+SCRIPT=$(for d in "$CLAUDE_DIR"/plugins/cache/*/clawd-statusline/*/; do
+  [ -f "$d/scripts/statusline-clawd.py" ] && echo "$d/scripts/statusline-clawd.py"
+done | sort -V | tail -1)
 echo "script: $SCRIPT"; test -f "$SCRIPT" && echo "found" || echo "MISSING"
 command -v python3 || echo "NO PYTHON3"
 ```
