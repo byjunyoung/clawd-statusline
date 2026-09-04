@@ -1,6 +1,6 @@
 # clawd-statusline
 
-Clawd — the mascot that already ships inside Claude Code — standing in your status line, reacting to how much room you have left.
+Clawd — the mascot that already ships inside Claude Code — standing in your status line, reacting to how much room you have left, and levelling up on the tokens you spend.
 
 ```
  ▐▛███▛█   [Opus] │ my-project git:(main*)
@@ -9,6 +9,34 @@ Clawd — the mascot that already ships inside Claude Code — standing in your 
 ```
 
 ![Clawd's eight poses](docs/poses.png)
+
+## It grows on what you spend
+
+From 0.3.0 Clawd keeps a level. Output tokens, new input and cache writes all count as food —
+cache reads do not, since locally they came to 12 billion tokens and would drown every other
+signal. Setup reads the last 90 days of your own transcripts, so nobody starts at zero.
+
+Levelling unlocks things to wear. Hats at 5, 12, 20, 30, 40, 50, 65; something to hold at 8, 18,
+35, 55. `/clawd-statusline:wear` changes them and `/clawd-statusline:card` shows where you are.
+
+```
+   ▄█▄
+ ▐▛███▛█    Lv.36
+▝▜██████▀█  next 10.7M
+  ▝▝ ▝▝
+```
+
+Five stats measure how you actually work — `APPETITE` tokens per active day, `REACH` share of
+tool calls that leave the machine, `STAMINA` how long you hold one conversation, `PACK` how
+often you send subagents out, `NOCTURNE` share of calls between 22:00 and 06:00. Push one past
+90 and it earns a title, and a title is the only thing that unlocks a friend to follow Clawd
+around. Levels alone never give you one — you have to work that way.
+
+The plan you are on scales the curve at half strength: Pro 0.45, Max 5x 1.0, Max 20x 2.0.
+Higher plans still grow faster, but not by the four-to-one raw token counts would give.
+
+**Skipping all of it is fine.** With no ledger on disk the growth code drops out entirely and
+the status line renders exactly as 0.2.0 did.
 
 ## It wraps, it doesn't replace
 
@@ -31,7 +59,7 @@ claude plugin marketplace add byjunyoung/clawd-statusline
 claude plugin install clawd-statusline@clawd-statusline
 ```
 
-Needs Python 3.9+. The status line takes effect on the next Claude Code start.
+Needs Python 3.9+, standard library only. The status line takes effect on the next Claude Code start.
 
 ## Poses
 

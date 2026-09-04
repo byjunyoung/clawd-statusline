@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Puts Clawd, the Claude Code mascot, in your status line",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
@@ -14,7 +14,13 @@
       "source": "./",
       "description": "Wraps your existing status line command and stands Clawd to the left of it. The pose reacts to whichever is worse - context headroom or rate-limit headroom.",
       "category": "monitoring",
-      "tags": ["statusline", "mascot", "clawd", "context", "monitoring"]
+      "tags": [
+        "statusline",
+        "mascot",
+        "clawd",
+        "context",
+        "monitoring"
+      ]
     }
   ]
 }

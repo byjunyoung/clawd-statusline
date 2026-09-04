@@ -63,12 +63,31 @@ Back up first, then set `statusLine`. Keep every other key in the file untouched
 
 On Windows the shebang does not run, so use `python <path>` as the command instead.
 
-## Step 5 - verify before reporting success
+## Step 5 - switch growth on
+
+From 0.3.0 Clawd levels up on the tokens you spend, and levelling unlocks things to wear.
+
+```bash
+python3 "$(dirname "$SCRIPT")/growth_cli.py" start
+```
+
+This reads the last 90 days of your own transcripts and sets the level that history earned,
+so nobody starts at zero. It takes a few seconds if there is a lot of history. The hooks that
+keep it fed come with the plugin - there is nothing to wire up.
+
+Read the level and what is already unlocked out of the returned JSON and tell the user.
+Skipping this step is fine: without a ledger the status line behaves exactly as it did in 0.2.0.
+
+## Step 6 - verify before reporting success
 
 Feed the script a sample payload and show the user the actual output:
 
 ```bash
 echo '{"session_id":"setup","context_window":{"remaining_percentage":80,"used_percentage":20},"rate_limits":{}}' | "$SCRIPT"
+python3 "$(dirname "$SCRIPT")/growth_cli.py" card
 ```
 
-Three lines of sprite must appear, with whatever was wrapped to the right of it. Then tell the user the status line takes effect on the next Claude Code start, and that the backup from Step 4 is how they undo this.
+The sprite must appear, with whatever was wrapped to the right of it, and the card must show a
+level. Then tell the user three things: the status line takes effect on the next Claude Code
+start, the backup from Step 4 is how they undo this, and `/clawd-statusline:wear` is how they
+change what Clawd has on.
