@@ -7,7 +7,7 @@
 
 설정: $CLAUDE_CONFIG_DIR/clawd-statusline.json (없으면 ~/.claude/)
   {
-    "wrap": "명령 문자열 또는 인자 배열",   // 생략하면 claude-hud 자동 탐지
+    "wrap": "명령 문자열 또는 인자 배열",   // 생략하면 이미 쓰는 상태줄을 찾아 감싼다
     "gap": 2,                                // 스프라이트와 오른쪽 사이 여백
     "thresholds": {"wary": 50, "alarmed": 25, "panic": 10},
     "jump": true                             // 프롬프트를 보내면 한 번 뛴다
@@ -297,8 +297,11 @@ def find_node():
     return None
 
 
-def autodetect_hud():
-    """설정에 wrap이 없을 때 claude-hud를 찾아본다. 없으면 감싸지 않는다."""
+def xdg_config():
+    return os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+
+
+def probe_hud():
     pattern = os.path.join(config_dir(), "plugins", "cache", "claude-hud", "claude-hud", "*", "")
     dirs = sorted(glob(pattern), key=os.path.getmtime, reverse=True)
     node = find_node()
@@ -306,6 +309,50 @@ def autodetect_hud():
         return None
     entry = os.path.join(dirs[0], "dist", "index.js")
     return [node, entry] if os.path.exists(entry) else None
+
+
+def probe_ccstatusline():
+    binary = shutil.which("ccstatusline")
+    if binary:
+        return [binary]
+    npx = shutil.which("npx")
+    settings = os.path.join(xdg_config(), "ccstatusline", "settings.json")
+    if npx and os.path.exists(settings):
+        return [npx, "-y", "ccstatusline@latest"]
+    return None
+
+
+def probe_powerline():
+    # 전역 실행 파일을 안 만드는 패키지라 설정 파일이 유일한 흔적이다.
+    npx = shutil.which("npx")
+    marks = [os.path.join(config_dir(), "claude-powerline.json"),
+             os.path.join(xdg_config(), "claude-powerline", "config.json")]
+    if npx and any(os.path.exists(m) for m in marks):
+        return [npx, "-y", "@owloops/claude-powerline@latest"]
+    return None
+
+
+def probe_ccusage():
+    binary = shutil.which("ccusage")
+    return [binary, "statusline"] if binary else None
+
+
+# 위에서부터 처음 맞는 것 하나. 흔적이 확실한 것을 앞에 둔다 - 플러그인이 깔려
+# 있거나 그 도구의 설정 파일이 있는 쪽이, PATH에 실행 파일만 있는 쪽보다 세다.
+PROBES = (probe_hud, probe_ccstatusline, probe_powerline, probe_ccusage)
+
+
+def autodetect_wrap():
+    """설정에 wrap이 없을 때 이미 쓰고 있는 상태줄을 찾아본다. 없으면 감싸지 않는다.
+
+    빠른 형태(설치된 실행 파일)를 먼저 본다. npx로 떨어지는 것은 그 도구를 실제로
+    설정한 흔적이 있을 때뿐이다. 안 쓰는 패키지를 매 턴 끌어오면 몇 초씩 태운다.
+    """
+    for probe in PROBES:
+        found = probe()
+        if found:
+            return found
+    return None
 
 
 def cache_key(payload, command):
@@ -362,7 +409,7 @@ def main():
         payload = {}
 
     cfg = load_config()
-    command = cfg["wrap"] or autodetect_hud()
+    command = cfg["wrap"] or autodetect_wrap()
     sprite = render(*pick_pose(payload, cfg, int(time.time())))
     right_lines = wrapped_lines(payload, raw, command)
 

@@ -36,7 +36,7 @@ Three cases:
 
 | Current `statusLine` | What to do |
 |---|---|
-| absent | Nothing to wrap. Clawd will auto-detect claude-hud if it is installed, otherwise stand alone. |
+| absent | Nothing to wrap. Clawd looks for claude-hud, ccstatusline, claude-powerline and ccusage; with none of them it stands alone. |
 | already this plugin's script | Already set up. Report that and stop - do not write anything. |
 | any other command | **Move that command into `wrap`** so it keeps rendering to the right of Clawd. |
 
@@ -68,7 +68,7 @@ On Windows the shebang does not run, so use `python <path>` as the command inste
 
 ## Step 5 - switch growth on
 
-From 0.3.0 Clawd levels up on the tokens you spend, and levelling unlocks things to wear.
+From 0.3.0 `/clawd-statusline:card` shows a level and five stats read out of your own history.
 
 ```bash
 python3 "$(dirname "$SCRIPT")/growth_cli.py" start
@@ -78,8 +78,9 @@ This reads the last 90 days of your own transcripts and sets the level that hist
 so nobody starts at zero. It takes a few seconds if there is a lot of history. The hooks that
 keep it fed come with the plugin - there is nothing to wire up.
 
-Read the level and what is already unlocked out of the returned JSON and tell the user.
-Skipping this step is fine: without a ledger the status line behaves exactly as it did in 0.2.0.
+Read the level out of the returned JSON and tell the user.
+Skipping this step is fine: the status line never reads the ledger, so with or without it Clawd
+is drawn exactly as in 0.2.0.
 
 ## Step 6 - verify before reporting success
 
@@ -92,5 +93,5 @@ python3 "$(dirname "$SCRIPT")/growth_cli.py" card
 
 The sprite must appear, with whatever was wrapped to the right of it, and the card must show a
 level. Then tell the user three things: the status line takes effect on the next Claude Code
-start, the backup from Step 4 is how they undo this, and `/clawd-statusline:wear` is how they
-change what Clawd has on.
+start, the backup from Step 4 is how they undo this, and `/clawd-statusline:card` is where the
+level and stats live.

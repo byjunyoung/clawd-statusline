@@ -1,6 +1,6 @@
 # clawd-statusline
 
-Clawd — the mascot that already ships inside Claude Code — standing in your status line, reacting to how much room you have left.
+Clawd — the mascot that already ships inside Claude Code — standing in your status line, reacting to how much room you have left. **It keeps whatever status line you already run**, so it costs you nothing to add.
 
 ```
  ▐▛███▛█   [Opus] │ my-project git:(main*)
@@ -8,7 +8,26 @@ Clawd — the mascot that already ships inside Claude Code — standing in your 
   ▝▝ ▝▝    1 CLAUDE.md
 ```
 
-![Clawd's eight poses](docs/poses.png)
+![Clawd's four poses](docs/poses.png)
+
+## It wraps, it doesn't replace
+
+Claude Code allows exactly one status line command, so a mascot that took that slot would cost you whatever you already run there. This one doesn't. It takes your existing command, feeds it the same stdin JSON, and prints its output to the right of the sprite. `/clawd-statusline:setup` moves your current status line into the `wrap` setting for you.
+
+With nothing configured it goes looking, and takes the first of these it finds:
+
+| Status line | What it looks for | What it runs |
+|---|---|---|
+| [claude-hud](https://github.com/jarrodwatts/claude-hud) | the plugin in your cache | `node .../dist/index.js` |
+| [ccstatusline](https://github.com/sirmalloc/ccstatusline) | the `ccstatusline` binary, else `~/.config/ccstatusline/settings.json` | `ccstatusline`, else `npx -y ccstatusline@latest` |
+| [claude-powerline](https://github.com/Owloops/claude-powerline) | `~/.claude/claude-powerline.json` | `npx -y @owloops/claude-powerline@latest` |
+| [ccusage](https://ccusage.com/guide/statusline) | the `ccusage` binary | `ccusage statusline` |
+
+An installed binary is always preferred over `npx`. A package only gets pulled through `npx` when
+you have actually configured it — having `npx` on your PATH is not on its own a reason to spend a
+few seconds a turn on a tool you don't use. Set `wrap` yourself and none of this runs.
+
+With none of them, Clawd stands alone.
 
 ## The card
 
@@ -47,12 +66,6 @@ it.
 
 **Skipping it is fine.** Never run setup's growth step and nothing is written, nothing is read,
 and the status line behaves exactly as it always has.
-
-## It wraps, it doesn't replace
-
-Claude Code allows exactly one status line command, so a mascot that took that slot would cost you whatever you already run there. This one doesn't. It takes your existing command, feeds it the same stdin JSON, and prints its output to the right of the sprite. `/clawd-statusline:setup` moves your current status line into the `wrap` setting for you.
-
-With nothing configured it looks for [claude-hud](https://github.com/jarrodwatts/claude-hud) and wraps that. With neither, Clawd stands alone.
 
 ## Install
 
