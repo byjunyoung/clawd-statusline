@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """터미널에서 사람이 낸 신호에 Clawd가 어떻게 반응하는가.
 
-새 그림은 없다. 넷 중 어느 것을 언제 뽑느냐와 세로 오프셋이 전부다.
+새 그림은 없다. 원본에 있는 자세 중 어느 것을 언제 뽑느냐와 세로 오프셋이 전부다.
 """
 import importlib.util
 import io
@@ -49,6 +49,13 @@ def tool_done(epoch):
 def said(epoch):
     return {"type": "assistant", "timestamp": iso(epoch),
             "message": {"role": "assistant", "content": [{"type": "text", "text": "done"}]}}
+
+
+def finished(epoch):
+    # 실제 기록은 json.dumps가 아니라 간격 없이 찍힌다. Session.write가 그 모양으로 쓴다.
+    return {"type": "assistant", "timestamp": iso(epoch),
+            "message": {"role": "assistant", "stop_reason": "end_turn",
+                        "content": [{"type": "text", "text": "done"}]}}
 
 
 class TestSignalKind(unittest.TestCase):
@@ -107,7 +114,7 @@ class Session(unittest.TestCase):
     def write(self, records, quiet=0.0):
         with io.open(self.path, "w", encoding="utf-8") as fh:
             for rec in records:
-                fh.write(json.dumps(rec) + "\n")
+                fh.write(json.dumps(rec, separators=(",", ":")) + "\n")
         if quiet:
             old = time.time() - quiet
             os.utime(self.path, (old, old))
@@ -224,6 +231,79 @@ class TestBusy(Session):
         for tick in range(60):
             self.write([tool_call(time.time() - 300)], quiet=300)
             self.assertIn(sl.pick_pose(self.payload(), CFG, tick)[0], sl.POSES)
+
+
+class TestDone(Session):
+    def test_finishing_a_reply_gets_a_wink(self):
+        self.write([prompt(time.time() - 30), finished(time.time() - 0.2)])
+        self.assertEqual(self.pose(), ("wink", 0, None))
+
+    def test_the_wink_wears_off(self):
+        self.write([prompt(time.time() - 30), finished(time.time() - sl.WINK_TICKS - 1)])
+        self.assertNotEqual(self.pose()[0], "wink")
+
+    def test_a_pause_between_tools_is_not_the_end(self):
+        self.write([prompt(time.time() - 30), said(time.time() - 0.2)])
+        self.assertNotEqual(self.pose()[0], "wink")
+
+    def test_a_subagent_finishing_is_not_the_end(self):
+        side = dict(finished(time.time() - 0.2), isSidechain=True)
+        self.write([prompt(time.time() - 30), side])
+        self.assertNotEqual(self.pose()[0], "wink")
+
+    def test_a_new_prompt_after_it_still_jumps(self):
+        self.write([finished(time.time() - 5), prompt(time.time() - 0.2)])
+        self.assertEqual(self.pose()[1], 1)
+
+    def test_no_winking_when_room_is_running_out(self):
+        self.write([prompt(time.time() - 30), finished(time.time() - 0.2)])
+        low = {"context_window": {"remaining_percentage": 3}}
+        self.assertNotEqual(self.pose(**low)[0], "wink")
+
+
+class TestTap(Session):
+    def test_a_long_running_tool_gets_the_foot_tapping(self):
+        self.write([prompt(time.time() - 60), tool_call(time.time() - 60)], quiet=60)
+        self.assertEqual(self.seq(len(sl.TAP)), [pose for pose, _o, _p in sl.TAP])
+
+    def test_then_it_rests_until_the_next_round(self):
+        self.write([prompt(time.time() - 60), tool_call(time.time() - 60)], quiet=60)
+        rest = self.seq(sl.TAP_EVERY)[len(sl.TAP):]
+        self.assertFalse({"step-left", "step-right"} & set(rest))
+
+    def test_a_tool_that_just_started_does_not(self):
+        self.write([prompt(time.time() - 2), tool_call(time.time() - 1)])
+        self.assertFalse({"step-left", "step-right"} & set(self.seq(sl.TAP_EVERY)))
+
+
+class TestIdleAntics(Session):
+    def at_block(self, block):
+        self.write([finished(time.time() - 300)], quiet=300)
+        payload = self.payload()
+        start = block * len(sl.IDLE_CYCLE)
+        return [sl.pick_pose(payload, CFG, start + t) for t in range(len(sl.IDLE_CYCLE))]
+
+    def test_now_and_then_it_sneezes(self):
+        self.assertEqual(self.at_block(7)[:len(sl.SNEEZE)], sl.SNEEZE)
+
+    def test_the_other_rounds_are_the_plain_cycle(self):
+        for block in range(7):
+            self.assertEqual([p for p, _o, _d in self.at_block(block)], sl.IDLE_CYCLE, block)
+
+
+class TestMotionsOff(Session):
+    OFF = dict(CFG, motions=False)
+    NEW = {"closed", "wink", "closed-arms-up", "step-left", "step-right"}
+
+    def test_switching_motions_off_leaves_only_what_was_there_before(self):
+        cases = [[prompt(time.time() - 30), finished(time.time() - 0.2)],
+                 [prompt(time.time() - 60), tool_call(time.time() - 60)],
+                 [finished(time.time() - 300)]]
+        for records in cases:
+            self.write(records, quiet=300 if records is not cases[0] else 0)
+            payload = self.payload()
+            for tick in range(len(sl.IDLE_CYCLE) * sl.IDLE_BLOCKS):
+                self.assertNotIn(sl.pick_pose(payload, self.OFF, tick)[0], self.NEW)
 
 
 class TestNoTranscript(Session):

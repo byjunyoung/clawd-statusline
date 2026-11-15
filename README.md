@@ -5,10 +5,10 @@ Clawd — the mascot that already ships inside Claude Code — standing in your 
 ```
  ▐▛███▛█   [Opus] │ my-project git:(main*)
 ▝▜██████▀  Context ██░░░░░░░░ 22% │ Usage ███░░░░░░░ 30%
-  ▝▝ ▝▝    1 CLAUDE.md
+ ▝▝   ▝▝   1 CLAUDE.md
 ```
 
-![Clawd's four poses](docs/poses.png)
+![Clawd's poses](docs/poses.png)
 
 ## It wraps, it doesn't replace
 
@@ -71,9 +71,13 @@ The pose follows whichever is worse — context headroom or rate-limit headroom.
 | 25–10% | arms up much of the time |
 | below 10% | arms up and down every second |
 
-**Only Anthropic's four original poses are used.** Earlier versions drew extra faces — a mouth, a
-blink — and that is exactly what made it look like a knock-off. Nothing new is drawn; how worried
-Clawd is comes out of which of the four appears and how often.
+**Only poses Anthropic ships are used.** Earlier versions drew extra faces — a mouth, a blink of
+our own — and that is exactly what made it look like a knock-off. Nothing new is drawn; how
+worried Clawd is comes out of which of the four named poses appears and how often.
+
+Claude Code 2.1.311 builds its Clawd from separate eyes, arms and feet, and plays more with them
+than it used to: closed eyes, a wink, one foot at a time. Those parts are used here too, glyph
+for glyph, and only in the combinations the original's own sequences use.
 
 Movement comes from `refreshInterval: 1`, which re-runs the status line once a second. Drop that key from `settings.json` for a still sprite.
 
@@ -89,19 +93,28 @@ nothing to install.
 | send a prompt | a typed user message appears | crouch, leap, land — one tick each |
 | press Esc to stop | `[Request interrupted by user]` lands in the transcript | throws his arms up and freezes for two ticks |
 | leave a tool running | the last tool call still has no result | glances around more — one band up from wherever headroom put him |
-| walk away | the transcript stops changing for a minute | drops into the loop the original plays when nothing is happening |
+| leave it running a while | that, and the transcript has not moved for eight seconds | taps his feet, left and right, then throws his arms up; rests, and does it again |
+| get a finished reply | the last assistant record ends with `end_turn` | winks for two ticks |
+| walk away | the transcript stops changing for a minute | drops into the loop the original plays when nothing is happening, and sneezes about once every three minutes |
+| nothing at all | he is standing still with room to spare | blinks now and then |
 
 ```
    crouch        jump        land           idle: 12 ticks, then one glance each way
 
                 ▗▟▛███▛█▄    ▐▛███▛█        ▐▛███▛█    ▐█▟███▟    ▐▟███▟█
-  ▐▛███▛█        ▜██████▘   ▝▜██████▀       ▝▜██████▀  ▝▜██████▀  ▝▜██████▀
- ~▜██████~        ▝▝ ▝▝       ▝▝ ▝▝           ▝▝ ▝▝      ▝▝ ▝▝      ▝▝ ▝▝
+  ▐▛███▛█        ▜██████▘   ▝▜██████▀      ▝▜██████▀  ▝▜██████▀  ▝▜██████▀
+ ~▜██████~       ▝▝   ▝▝     ▝▝   ▝▝        ▝▝   ▝▝    ▝▝   ▝▝    ▝▝   ▝▝
 ```
 
-Every frame above is one Anthropic already ships, and so is the pairing. Across the original's
-six sequences only five (pose, vertical offset) combinations ever occur, and a dropped body is
-only ever paired with `default` — so an interrupt gets `arms-up` standing, not ducking. The dust
+The newer motions are the original's `wink`, `tap` and `sneeze`, and the blink it ends several
+sequences on. The original plays a frame every 60ms; here a frame lasts a second, so runs of the
+same frame are folded into one or two ticks. Frames are skipped, never reordered or redrawn —
+`tests/test_poses.py` checks each tick sequence against the original's. Its `turn` was tried and
+left out: a spin shown one frame a second is a sliver standing still, not a spin. Set
+`"motions": false` to go back to the four poses alone.
+
+Every frame above is one Anthropic already ships, and so is the pairing. A dropped body is only
+ever paired with arms down — so an interrupt gets `arms-up` standing, not ducking. The dust
 is not decoration either: crouching clips a column off each end of the body, and those two
 characters are what fill the gap. `tests/test_poses.py` fails if a frame outside that set is
 emitted, or if dust appears without a crouch.
@@ -137,6 +150,7 @@ Everything is optional. Create `~/.claude/clawd-statusline.json` (or under `$CLA
 | `startle` | `true` | Flinch for two ticks after you interrupt with Esc. |
 | `busy` | `true` | Glance around more while a tool is still running. |
 | `idle` | `60` | Fall into the original's idle loop after this many quiet seconds. `0` never does. |
+| `motions` | `true` | Blink, wink when a reply finishes, tap feet during a long tool call, sneeze now and then while idle. `false` leaves the four poses alone. |
 
 ```json
 {
@@ -164,7 +178,7 @@ The wrapped command's output is cached under `clawd-cache/`, keyed partly on the
 
 ## Where Clawd comes from
 
-Clawd is Anthropic's, not mine. The character, its four poses, the terminal fallbacks, the dust characters and the frame vocabulary are all reproduced from Claude Code's own renderer, where the sprite is drawn as quadrant blocks over a black field so the unfilled quadrants read as eyes. Nothing has been added to the character itself.
+Clawd is Anthropic's, not mine. The character, its poses, the terminal fallbacks, the dust characters and the frame vocabulary are all reproduced from Claude Code's own renderer, where the sprite is drawn as quadrant blocks over a black field so the unfilled quadrants read as eyes. Nothing has been added to the character itself.
 
 For the record, this is the whole of what the original animates (2.1.260):
 
@@ -175,6 +189,16 @@ idle       default ×12  look-right ×5  look-left ×5
 spin       look-left ×2  look-right ×2  look-left ×2  arms-up ×3  default
 celebrate  jump, then crouch ×3 with no dust
 skip       the same beats while sliding in from nine columns left
+```
+
+2.1.311 splits the sprite into eyes (open, left, right, closed, wink), arms (down, up, one-up)
+and feet (both, left, right), adds thirteen turning frames, and plays fifteen sequences. The ones
+used here:
+
+```
+wink       wink ×5  default
+tap        left ×2  right ×2  left ×2  right ×2  left  right  arms-up ×3  default
+sneeze     closed+arms-up ×4  closed crouch~ ×2  closed ×2  default ×2  closed  default
 ```
 
 Anthropic has never documented the character, and requests to make the CLI avatar configurable were closed as `not_planned`. This project is not affiliated with or endorsed by Anthropic.
