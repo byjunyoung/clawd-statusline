@@ -37,18 +37,20 @@ CELL = PX * 2
 
 
 def cells(pose):
-    """포즈 한 개를 (문자, 눈배경인가) 격자로 편다. render()의 행 구성 그대로."""
-    arms, face, mouth = sl.POSES[pose]
+    """포즈 한 개를 (문자, 바탕) 격자로 편다. render()의 행 구성 그대로.
+
+    바탕은 None(없음), "eye"(검정 위에 몸통색), "lid"(몸통색 위에 검은 눈꺼풀 선).
+    """
+    eyes, arms, feet = sl.POSES[pose]
+    arms = sl.ARMS[arms]
+    face = [(ch, "lid" if lid else "eye") for glyphs, lid in sl.EYES[eyes] for ch in glyphs]
     rows = [(arms["r1L"], face, arms["r1R"]),
-            (arms["r2L"], mouth, arms["r2R"]),
-            ("", sl.FEET, "")]
+            (arms["r2L"], [(ch, "eye") for ch in sl.BODY], arms["r2R"]),
+            ("", [(ch, None) for ch in sl.FEET[feet]], "")]   # 발 줄은 검은 배경을 깔지 않는다
     out = []
-    for i, (left, mid, right) in enumerate(rows):
-        boxed = i < 2      # 세 번째 줄(발)은 검은 배경을 깔지 않는다
-        line = [(ch, False) for ch in left]
-        line += [(ch, boxed) for ch in mid]
-        line += [(ch, False) for ch in right]
-        line += [(" ", False)] * max(0, sl.WIDTH - len(line))
+    for left, mid, right in rows:
+        line = [(ch, None) for ch in left] + mid + [(ch, None) for ch in right]
+        line += [(" ", None)] * max(0, sl.WIDTH - len(line))
         out.append(line)
     return out
 
@@ -56,12 +58,17 @@ def cells(pose):
 def tile(pose):
     parts = []
     for r, line in enumerate(cells(pose)):
-        for c, (ch, boxed) in enumerate(line):
+        for c, (ch, ground) in enumerate(line):
             x, y = c * CELL, r * CELL
-            if boxed:
+            if ground:
                 parts.append(
                     '<i style="left:%dpx;top:%dpx;width:%dpx;height:%dpx;background:%s"></i>'
-                    % (x, y, CELL, CELL, EYE))
+                    % (x, y, CELL, CELL, BODY if ground == "lid" else EYE))
+            if ground == "lid":      # ▂: 칸 아래 4분의 1만 검게
+                parts.append(
+                    '<i style="left:%dpx;top:%dpx;width:%dpx;height:%dpx;background:%s"></i>'
+                    % (x, y + CELL - CELL // 4, CELL, CELL // 4, EYE))
+                continue
             on = QUAD.get(ch, (0, 0, 0, 0))
             for q, lit in enumerate(on):
                 if not lit:
@@ -73,7 +80,9 @@ def tile(pose):
 
 
 DESC = {"default": "idle", "look-left": "looking left",
-        "look-right": "looking right", "arms-up": "arms up"}
+        "look-right": "looking right", "arms-up": "arms up",
+        "closed": "blink", "wink": "reply done", "closed-arms-up": "sneeze",
+        "step-left": "tapping", "step-right": "tapping"}
 
 CSS = """
 body{margin:0;background:%s;font:600 15px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;
@@ -91,7 +100,7 @@ def html():
     for pose in sl.POSES:
         tiles.append('<div class="pose"><div class="art">%s</div>%s <span class="d">%s</span></div>'
                      % (tile(pose), pose, DESC.get(pose, "")))
-    note = ('<div class="note">Anthropic drew these four.<br>Nothing here is ours.</div>')
+    note = ('<div class="note">Anthropic drew all of these.<br>Nothing here is ours.</div>')
     return "<!doctype html><meta charset=utf-8><style>%s</style>%s%s" % (
         CSS, "".join(tiles), note)
 

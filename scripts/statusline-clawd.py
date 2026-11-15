@@ -13,7 +13,8 @@
     "jump": true,                            // 프롬프트를 보내면 한 번 뛴다
     "startle": true,                         // Esc로 멈추면 놀란다
     "busy": true,                            // 도구가 도는 동안 두리번거린다
-    "idle": 60                               // 이만큼 조용하면 앉는다. 0이면 안 앉는다
+    "idle": 60,                              // 이만큼 조용하면 앉는다. 0이면 안 앉는다
+    "motions": true                          // 깜빡임·윙크·발 구르기·재채기
   }
 """
 import hashlib
@@ -34,42 +35,60 @@ STARTLE_TICKS = 2    # 중단당한 뒤 팔을 든 채 굳어 있는 틱 수
 IDLE_AFTER = 60      # 이만큼 조용하면 앉는다(초)
 TAIL_BYTES = 65536   # transcript 꼬리에서 읽어볼 크기
 TAIL_LINES = 40      # 그 안에서 들여다볼 줄 수
+WINK_TICKS = 2       # 응답이 끝난 뒤 윙크하는 틱 수
 DEFAULTS = {"wrap": None, "gap": 2, "jump": True, "startle": True, "busy": True, "idle": 60,
+            "motions": True,
             "thresholds": {"wary": 50, "alarmed": 25, "panic": 10}}
 
 # --- 스프라이트 ------------------------------------------------------------
-# 얼굴·몸통은 검정 배경 위에 몸통색 블록을 얹는다. 빈 사분면이 비쳐 눈과 입이 된다.
-ARMS_DOWN = dict(r1L=" ▐", r1R="", r2L="▝▜", r2R="█▀")
-ARMS_UP = dict(r1L="▗▟", r1R="▄", r2L=" ▜", r2R="█▘")
-FEET = "  ▝▝ ▝▝  "
+# 전부 클로드 코드 2.1.311이 실제로 싣고 있는 부품이다. 원본은 눈·팔·발을 따로 두고
+# 조합해서 그린다. 여기도 그 부품과 그 조합만 쓴다. 표정을 새로 그려 붙이면 그 순간 짝퉁이 된다.
+# 얼굴·몸통은 검정 배경 위에 몸통색 블록을 얹는다. 빈 사분면이 비쳐 눈이 된다.
+ARMS = {
+    "down": dict(r1L=" ▐", r1R="", r2L="▝▜", r2R="█▀"),
+    "up":   dict(r1L="▗▟", r1R="▄", r2L=" ▜", r2R="█▘"),
+}
+# 눈 줄은 조각으로 나뉜다. 둘째 값이 참인 조각은 눈꺼풀이다 - 색을 뒤집어 몸통색 바탕에
+# 검은 선 하나만 남긴다. 원본도 감은 눈을 이렇게 그린다.
+EYES = {
+    "open":   [("▛███▛█", False)],
+    "left":   [("▟███▟█", False)],
+    "right":  [("█▟███▟", False)],
+    "closed": [("▂", True), ("███", False), ("▂", True), ("█", False)],
+    "wink":   [("▛███", False), ("▂", True), ("█", False)],
+}
+FEET = {"both": " ▝▝   ▝▝ ", "left": " ▝▝      ", "right": "      ▝▝ "}
+BODY = "█████"   # 몸통 줄은 늘 꽉 차 있다. 사분면을 비우면 그게 입이 된다
 
-# 앤트로픽 원본에 있는 넷이 전부다. 여기에 표정을 더 그리지 않는다.
-# 입이나 감은 눈을 새로 그려 붙이면 그 순간 짝퉁이 된다. 여유가 얼마나 남았는지는
-# 어느 포즈를 얼마나 자주 쓰느냐로만 말한다.
+# 이름 -> (눈, 팔, 발). 앞의 넷은 원본이 이름 붙여 둔 것이고, 나머지는 원본의 동작
+# (wink·tap·sneeze·boop)이 실제로 쓰는 조합에 여기서 이름만 붙였다.
 POSES = {
-    "default":    (ARMS_DOWN, "▛███▛█", "█████"),
-    "look-left":  (ARMS_DOWN, "▟███▟█", "█████"),
-    "look-right": (ARMS_DOWN, "█▟███▟", "█████"),
-    "arms-up":    (ARMS_UP,   "▛███▛█", "█████"),
+    "default":        ("open",   "down", "both"),
+    "look-left":      ("left",   "down", "both"),
+    "look-right":     ("right",  "down", "both"),
+    "arms-up":        ("open",   "up",   "both"),
+    "closed":         ("closed", "down", "both"),
+    "wink":           ("wink",   "down", "both"),
+    "closed-arms-up": ("closed", "up",   "both"),
+    "step-left":      ("open",   "down", "left"),
+    "step-right":     ("open",   "down", "right"),
 }
 
 # Apple Terminal은 사분면 렌더가 다르다. 앤트로픽 원본도 여기선 색을 반전시켜
 # 몸통을 배경으로 칠하고 눈만 전경색으로 찍는다. (눈·입 7칸, 양옆에 귀 1칸씩)
-FALLBACK = {
-    "default":    (" ▗   ▖ ", "       "),
-    "look-left":  (" ▘   ▘ ", "       "),
-    "look-right": (" ▝   ▝ ", "       "),
-    "arms-up":    (" ▗   ▖ ", "       "),
-}
-FALLBACK_FEET = "▘▘ ▝▝"
+# 팔과 발은 이 그림에 없어서 눈만 바뀐다.
+FALLBACK_EYES = {"open": " ▗   ▖ ", "left": " ▘   ▘ ", "right": " ▝   ▝ ",
+                 "closed": " ▂   ▂ ", "wink": " ▗   ▂ "}
+FALLBACK_MOUTH = "       "
+FALLBACK_FEET = "▘▘   ▝▝"
 
 # 도약 프레임에서 팔을 올린 짝. panic은 이미 alarmed 얼굴에 팔만 올린 포즈다.
 AIRBORNE = {"default": "arms-up", "look-left": "arms-up",
             "look-right": "arms-up", "arms-up": "arms-up"}   # 뛰는 중엔 팔을 든다
 
 # 잔량 구간마다 포즈를 뽑는 확률이 다르다. 여유로우면 가만히 있고, 줄수록 두리번거리다,
-# 위태로우면 팔을 든다. 그림은 넷 그대로고 빈도만 바뀐다.
-# 원본이 가만히 있을 때 도는 순서(chunk-j9b3a0wh.js의 autoplay). 60ms짜리를 틱에 얹으면
+# 위태로우면 팔을 든다. 그림은 그대로고 빈도만 바뀐다.
+# 원본이 가만히 있을 때 도는 순서(autoplay). 60ms짜리를 틱에 얹으면
 # 22초 주기가 된다. 무작위로 뽑지 않고 이 순서 그대로 돈다 - 그게 "가라앉았다"로 읽힌다.
 IDLE_CYCLE = ["default"] * 12 + ["look-right"] * 5 + ["look-left"] * 5
 
@@ -78,6 +97,19 @@ BANDS = [
     ("wary",    [("default", 25), ("look-left", 32), ("look-right", 33), ("arms-up", 10)]),
     ("alarmed", [("look-left", 30), ("look-right", 30), ("arms-up", 40)]),
 ]
+
+# 원본 동작을 틱에 옮긴 것. (포즈, 세로 오프셋, 먼지) 한 줄이 1초다.
+# 원본은 한 장이 60ms라 그대로 얹으면 윙크 하나가 5초가 된다. 점프를 세 틱으로 접은 것과
+# 같은 식으로, 같은 장면이 이어지는 구간을 한두 틱으로 접었다. 장면과 순서는 원본 그대로다.
+WINK = [("wink", 0, None)] * WINK_TICKS
+TAP = [(f"step-{side}", 0, None) for side in ("left", "right") * 3] + [("arms-up", 0, None)]
+SNEEZE = [("closed-arms-up", 0, None), ("closed", 1, "~"), ("closed", 0, None),
+          ("default", 0, None), ("closed", 0, None)]
+TAP_AFTER = 8      # 도구가 이만큼 조용히 돌면 발을 구른다(초)
+TAP_EVERY = 15     # 발 구르기 한 번과 그 뒤 쉬는 틱을 합친 주기
+IDLE_BLOCKS = 8    # 쉬는 순서 여덟 바퀴에 한 번 재채기한다
+IDLE_ANTICS = {7: SNEEZE}
+BLINK_ODDS = 0.1   # 가만히 서 있는 틱이 깜빡임으로 바뀔 확률
 
 RESET = "\033[0m"
 NO_BG = "\033[49m"
@@ -106,27 +138,32 @@ def render(pose, offset=0, poof=None):
     dust = f"{dim}{poof}{RESET}" if offset and poof else None
 
     if os.environ.get("TERM_PROGRAM") == "Apple_Terminal":
-        eyes, mouth = FALLBACK[pose]
+        eyes = FALLBACK_EYES[POSES[pose][0]]
         pad = " " * ((WIDTH - len(FALLBACK_FEET)) // 2)
         head = f"{body_fg}▗{face_fg}{body_bg}{eyes}{NO_BG}{body_fg}▖{RESET}"
         if offset:
-            body = f"{face_fg}{body_bg}{mouth}{NO_BG}{RESET}"
+            body = f"{face_fg}{body_bg}{FALLBACK_MOUTH}{NO_BG}{RESET}"
             return [BLANK, head, f"{dust}{body}{dust}" if dust else f" {body} "]
         return [
             head,
-            f"{face_fg}{body_bg} {mouth} {NO_BG}{RESET}",
+            f"{face_fg}{body_bg} {FALLBACK_MOUTH} {NO_BG}{RESET}",
             f"{body_fg}{pad}{FALLBACK_FEET}{RESET}{pad}",
         ]
 
-    arms, face, mouth = POSES[pose]
+    eyes, arms, feet = POSES[pose]
+    arms = ARMS[arms]
+    # 눈꺼풀 조각만 색을 뒤집었다가 되돌린다.
+    face = "".join(f"{face_fg}{body_bg}{glyphs}{body_fg}{face_bg}" if lid else glyphs
+                   for glyphs, lid in EYES[eyes])
+    face_width = sum(len(glyphs) for glyphs, _lid in EYES[eyes])
     rows = [
-        (arms["r1L"], face, arms["r1R"], True),
-        (arms["r2L"], mouth, arms["r2R"], True),
-        ("", FEET, "", False),
+        (arms["r1L"], face, face_width, arms["r1R"], True),
+        (arms["r2L"], BODY, len(BODY), arms["r2R"], True),
+        ("", FEET[feet], len(FEET[feet]), "", False),
     ]
     out = []
-    for left, mid, right, boxed in rows:
-        gap = " " * max(0, WIDTH - len(left + mid + right))
+    for left, mid, mid_width, right, boxed in rows:
+        gap = " " * max(0, WIDTH - len(left) - mid_width - len(right))
         core = f"{face_bg}{mid}{NO_BG}" if boxed else mid
         out.append(f"{body_fg}{left}{core}{right}{RESET}{gap}")
 
@@ -135,13 +172,16 @@ def render(pose, offset=0, poof=None):
 
     # 몸통 줄의 양 끝 한 칸을 먼지로 바꿔 끼운다. 폭은 그대로 WIDTH.
     left, right = arms["r2L"][1:], arms["r2R"][:-1]
-    body = f"{body_fg}{left}{face_bg}{mouth}{NO_BG}{right}{RESET}"
+    body = f"{body_fg}{left}{face_bg}{BODY}{NO_BG}{right}{RESET}"
     body = f"{dust}{body}{dust}" if dust else f" {body} "
     return [BLANK, out[0], body]
 
 
 # --- 사람이 낸 신호 --------------------------------------------------------
 INTERRUPT_MARK = "[Request interrupted"
+
+
+END_TURN = b'"stop_reason":"end_turn"'
 
 
 def signal_kind(record):
@@ -186,6 +226,7 @@ def read_tail(path, size):
     """꼬리를 한 번 읽어 (신호, 시각, 작업중)을 같이 뽑는다.
 
     셋을 따로 읽으면 같은 파일을 세 번 연다. 매초 도는 명령이라 한 번에 끝낸다.
+    신호는 사람이 낸 것 둘에 "done"이 더 있다 - 응답이 다 끝났다는 표시다.
     """
     try:
         with open(path, "rb") as fh:
@@ -200,7 +241,9 @@ def read_tail(path, size):
     for line in reversed(lines):
         # 큰 도구 결과 줄은 열어보지도 않는다. JSON 간격에 기대지 않으려고
         # 키 이름만 훑는다.
-        if b'"user"' not in line or b'"tool_result"' in line or b'"toolUseResult"' in line:
+        done = END_TURN in line and b'"assistant"' in line
+        if not done and (b'"user"' not in line or b'"tool_result"' in line
+                         or b'"toolUseResult"' in line):
             continue
         try:
             record = json.loads(line.decode("utf-8", "replace"))
@@ -208,7 +251,12 @@ def read_tail(path, size):
             continue
         if not isinstance(record, dict):
             continue
-        kind = signal_kind(record)
+        if done:
+            if record.get("type") != "assistant" or record.get("isSidechain"):
+                continue
+            kind = "done"
+        else:
+            kind = signal_kind(record)
         if kind is None:
             continue
         stamp = record.get("timestamp")
@@ -295,7 +343,7 @@ def pick_pose(payload, cfg, tick):
     """(포즈, 세로 오프셋, 먼지).
 
     바탕은 여유가 얼마나 남았는가고, 그 위에 방금 무슨 일이 있었는지를 얹는다.
-    최근 것이 이긴다 - 점프·놀람 > 앉기 > 두리번 > 바탕.
+    최근 것이 이긴다 - 점프·놀람·윙크 > 발 구르기 > 앉기 > 두리번 > 바탕.
     """
     thresholds = cfg["thresholds"]
     remaining = []
@@ -339,6 +387,17 @@ def pick_pose(payload, cfg, tick):
             # 원본에 offset 1은 default에만 붙는다. arms-up을 내리면 없는 프레임이 된다.
             return "arms-up", 0, None
 
+    motions = cfg.get("motions", True) and not panicking
+    if kind == "done" and motions:
+        frame = frame_of(age, len(WINK))
+        if frame is not None:
+            return WINK[frame]      # 다 했다는 표시다. 좋다고 뛰는 것과는 다른 몸짓으로 둔다
+
+    if (busy and cfg.get("busy", True) and motions
+            and quiet is not None and quiet >= TAP_AFTER and tick % TAP_EVERY < len(TAP)):
+        # 도구가 오래 도는 동안은 발을 구르며 기다린다. 구르고 나면 한동안은 원래대로 둔다.
+        return TAP[tick % TAP_EVERY]
+
     idle_after = cfg.get("idle", IDLE_AFTER)
     if (idle_after and not busy and not panicking
             and quiet is not None and quiet >= idle_after):
@@ -346,8 +405,14 @@ def pick_pose(payload, cfg, tick):
         # 멈추고 정해진 주기로 도는 것 자체가 가라앉은 표시다.
         # 웅크린 채로 두지는 않는다 - 웅크리면 몸통 양 끝 한 칸이 잘리는데, 원본은
         # 그 자리를 먼지로 메운다. 먼지 없이 계속 웅크리면 몸이 줄어 보인다.
-        return IDLE_CYCLE[tick % len(IDLE_CYCLE)], 0, None
+        block, step = divmod(tick % (len(IDLE_CYCLE) * IDLE_BLOCKS), len(IDLE_CYCLE))
+        antic = IDLE_ANTICS.get(block) if motions else None
+        if antic and step < len(antic):
+            return antic[step]      # 가끔 재채기한다. 끝나면 순서로 돌아온다
+        return IDLE_CYCLE[step], 0, None
 
+    if pose == "default" and motions and random.Random(tick ^ 0xB11C).random() < BLINK_ODDS:
+        return "closed", 0, None    # 가만히 서 있을 때만 가끔 깜빡인다
     return pose, 0, None
 
 

@@ -13,12 +13,13 @@ Edit `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/clawd-statusline.json`. Create it only
 | `gap` | `2` | Blank columns between the sprite and the wrapped output. |
 | `thresholds` | `{"wary": 50, "alarmed": 25, "panic": 10}` | Remaining-percentage cutoffs where Clawd gets more restless. Higher numbers mean he worries earlier. |
 | `jump` | `true` | Hop for three ticks after the user sends a prompt. Suppressed below the `wary` threshold. |
+| `motions` | `true` | Blink, wink when a reply finishes, tap feet during a long tool call, sneeze now and then while idle. |
 
 ## How to work
 
 Read the file first and keep the keys that are already there - a partial file is valid, and unknown keys are ignored rather than rejected.
 
-Ask which of the four the user wants to change before writing anything, unless they already said. Then verify with a sample payload and show the result:
+Ask which of these the user wants to change before writing anything, unless they already said. Then verify with a sample payload and show the result:
 
 ```bash
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
